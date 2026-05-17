@@ -28,6 +28,12 @@ const sendEmail = async (options: SendEmailOptions): Promise<void> => {
       user,
       pass,
     },
+    tls: {
+      rejectUnauthorized: false,
+    },
+    connectionTimeout: 15_000,
+    socketTimeout: 15_000,
+    greetingTimeout: 15_000,
     logger: true,
     debug: true,
   });
