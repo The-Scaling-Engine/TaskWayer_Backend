@@ -11,5 +11,5 @@ ALTER TABLE "profiles" DROP COLUMN IF EXISTS "passwordResetToken";
 ALTER TABLE "profiles" DROP COLUMN IF EXISTS "passwordResetExpires";
 
 -- Add Supabase Auth user UUID link
-ALTER TABLE "profiles" ADD COLUMN "supabaseId" TEXT;
+ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "supabaseId" TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS "profiles_supabaseId_key" ON "profiles"("supabaseId");
