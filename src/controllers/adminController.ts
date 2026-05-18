@@ -1,9 +1,11 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { prisma } from '../config/prisma';
+import supabaseAdmin from '../config/supabase';
+import { env } from '../config/env';
 import logger from '../config/logger';
 import { sendError } from '../utils/apiResponse';
-import type { GetUsersQuery } from '../schemas/adminSchemas';
+import type { GetUsersQuery, CreateUserInput } from '../schemas/adminSchemas';
 
 export const getDashboard = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -127,6 +129,74 @@ export const unbanUser = async (req: AuthRequest, res: Response): Promise<void> 
     });
   } catch (error) {
     logger.error({ err: error, requestId: req.requestId }, 'unbanUser failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const createUser = async (req: AuthRequest, res: Response): Promise<void> => {
+  let supabaseUserId: string | null = null;
+
+  try {
+    const { name, username, email } = res.locals.validated.body as CreateUserInput;
+
+    // Check uniqueness in our DB
+    const existing = await prisma.profile.findFirst({
+      where: { OR: [{ email }, { username }] },
+      select: { email: true, username: true },
+    });
+    if (existing?.email === email) {
+      sendError(res, req, 409, 'CONFLICT', 'Email already in use');
+      return;
+    }
+    if (existing?.username === username) {
+      sendError(res, req, 409, 'CONFLICT', 'Username already in use');
+      return;
+    }
+
+    // Invite via Supabase — Supabase handles email delivery to any address
+    const { data, error: supabaseError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data:       { name, username },
+      redirectTo: `${env.CLIENT_URL}/reset-password`,
+    });
+
+    if (supabaseError || !data.user) {
+      logger.error({ err: supabaseError, email }, 'Supabase inviteUserByEmail failed');
+      sendError(res, req, 500, 'INTERNAL_ERROR', 'Failed to send invitation email. Please try again.');
+      return;
+    }
+
+    supabaseUserId = data.user.id;
+
+    // Create Profile in our DB
+    const profile = await prisma.profile.create({
+      data: {
+        email,
+        name,
+        username,
+        supabaseId: supabaseUserId,
+        role:   'USER',
+        status: 'ACTIVE',
+      },
+    });
+
+    logger.info({ adminId: req.user!.prismaId, newUserId: profile.id, email }, 'Admin created new user');
+
+    res.status(201).json({
+      success: true,
+      message: 'User account created. An activation email has been sent.',
+      data: {
+        id:        profile.id,
+        name:      profile.name,
+        username:  profile.username,
+        email:     profile.email,
+        role:      profile.role,
+        status:    profile.status,
+        createdAt: profile.createdAt,
+      },
+    });
+  } catch (error) {
+    if (supabaseUserId) await supabaseAdmin.auth.admin.deleteUser(supabaseUserId).catch(() => {});
+    logger.error({ err: error, requestId: req.requestId }, 'createUser failed');
     sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };

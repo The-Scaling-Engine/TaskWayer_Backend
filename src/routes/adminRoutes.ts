@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
 import { adminOnly } from '../middleware/adminMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
-import { getDashboard, getUsers, banUser, unbanUser } from '../controllers/adminController';
+import { getDashboard, getUsers, banUser, unbanUser, createUser } from '../controllers/adminController';
 import { assignUserToDepartment, removeUserFromDepartment } from '../controllers/departmentController';
-import { getUsersQuerySchema } from '../schemas/adminSchemas';
+import { getUsersQuerySchema, createUserSchema } from '../schemas/adminSchemas';
 import { assignUserToDepartmentSchema, removeUserFromDepartmentSchema } from '../schemas/departmentSchemas';
 import { uuidParamSchema } from '../schemas/commonSchemas';
 
@@ -18,6 +18,9 @@ router.get('/dashboard', getDashboard);
 
 // GET /api/admin/users
 router.get('/users', validateRequest({ query: getUsersQuerySchema }), getUsers);
+
+// POST /api/admin/users
+router.post('/users', validateRequest({ body: createUserSchema }), createUser);
 
 // PATCH /api/admin/users/:id/ban
 router.patch('/users/:id/ban', validateRequest({ params: uuidParamSchema }), banUser);

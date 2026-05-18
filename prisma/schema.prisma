@@ -62,18 +62,16 @@ enum MembershipStatus {
 // ─── Models ──────────────────────────────────────────────────
 
 model Profile {
-  id                   String    @id @default(uuid())
-  email                String    @unique
-  name                 String?
-  avatar               String?
-  passwordHash         String
-  role                 Role      @default(USER)
-  status               UserStatus @default(ACTIVE)
-  passwordResetToken   String?
-  passwordResetExpires DateTime?
-  mongoId              String?   @unique
-  username             String?   @unique
-  jobTitle             String?   @db.VarChar(200)
+  id           String     @id @default(uuid())
+  email        String     @unique
+  name         String?
+  avatar       String?
+  supabaseId   String?    @unique
+  role         Role       @default(USER)
+  status       UserStatus @default(ACTIVE)
+  mongoId      String?    @unique
+  username     String?    @unique
+  jobTitle     String?    @db.VarChar(200)
   tasks                Task[]
   memberships          DepartmentMember[]    @relation("MemberProfile")
   invitedMemberships   DepartmentMember[]    @relation("InviterProfile")
@@ -82,10 +80,9 @@ model Profile {
   notifications        Notification[]
   activityLogs         ActivityLog[]
   timeSessions         TimeTrackingSession[]
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  @@index([passwordResetToken])
   @@map("profiles")
 }
 
