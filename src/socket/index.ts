@@ -1,7 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma';
+import supabaseAdmin from '../config/supabase';
 import logger from '../config/logger';
 import { env } from '../config/env';
 
@@ -55,7 +55,7 @@ export function initSocket(httpServer: HttpServer): SocketServer {
     },
   });
 
-  // ─── JWT auth middleware ──────────────────────────────────────
+  // ─── Auth middleware ──────────────────────────────────────────
   io.use(async (socket, next) => {
     try {
       const token =
@@ -67,15 +67,14 @@ export function initSocket(httpServer: HttpServer): SocketServer {
         return next(new Error('Authentication required'));
       }
 
-      const decoded = jwt.verify(token, env.JWT_SECRET) as { id?: string; userId?: string };
-      const userId = decoded.id ?? decoded.userId;
-      if (!userId) {
-        logger.warn({ ip: socket.handshake.address, reason: 'invalid_payload' }, 'Socket auth rejected');
-        return next(new Error('Invalid token payload'));
+      const { data: { user: supabaseUser }, error } = await supabaseAdmin.auth.getUser(token);
+      if (error || !supabaseUser || !supabaseUser.email) {
+        logger.warn({ ip: socket.handshake.address, reason: 'invalid_token' }, 'Socket auth rejected');
+        return next(new Error('Invalid or expired token'));
       }
 
       const profile = await prisma.profile.findUnique({
-        where: { id: userId },
+        where: { email: supabaseUser.email },
         select: { id: true, role: true, status: true },
       });
 
@@ -96,7 +95,7 @@ export function initSocket(httpServer: HttpServer): SocketServer {
 
       next();
     } catch {
-      logger.warn({ ip: socket.handshake.address, reason: 'invalid_token' }, 'Socket auth rejected');
+      logger.warn({ ip: socket.handshake.address, reason: 'auth_error' }, 'Socket auth rejected');
       next(new Error('Invalid or expired token'));
     }
   });
