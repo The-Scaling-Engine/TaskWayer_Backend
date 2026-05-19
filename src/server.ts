@@ -27,6 +27,7 @@ import { protect, AuthRequest } from './middleware/authMiddleware';
 import { initSocket, getIO } from './socket/index';
 import prisma from './config/prisma';
 import { sendError } from './utils/apiResponse';
+import { startDeadlineNotificationJob } from './jobs/deadlineNotificationJob';
 
 const app = express();
 
@@ -142,6 +143,9 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => 
 // ─── HTTP Server + Socket.IO ──────────────────────────────────
 const httpServer = createServer(app);
 initSocket(httpServer);
+
+// ─── Background jobs ──────────────────────────────────────────
+startDeadlineNotificationJob();
 
 // ─── Graceful shutdown ────────────────────────────────────────
 let isShuttingDown = false;

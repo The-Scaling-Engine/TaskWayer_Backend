@@ -83,13 +83,6 @@ export class PrismaTaskRepository implements ITaskRepository {
       };
     }
 
-    if (filter.deadlineFrom || filter.deadlineTo) {
-      additionalFilters.deadline = {
-        ...(filter.deadlineFrom && { gte: filter.deadlineFrom }),
-        ...(filter.deadlineTo   && { lte: filter.deadlineTo }),
-      };
-    }
-
     const where: Prisma.TaskWhereInput = {
       AND: [baseScope, additionalFilters],
     };

@@ -231,7 +231,6 @@ export interface UpdateTaskData {
   isRecurring?: boolean;
   recurrenceType?: RecurrenceType | null;
   recurrenceEndDate?: Date | null;
-  recurrenceParentId?: string | null;
 }
 
 export interface TaskFilterOptions {
@@ -239,8 +238,6 @@ export interface TaskFilterOptions {
   priority?: string;
   tag?: string;
   search?: string;
-  deadlineFrom?: Date;
-  deadlineTo?: Date;
 }
 
 export interface TaskSortOptions {

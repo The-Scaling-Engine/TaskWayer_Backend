@@ -1,5 +1,5 @@
 import { Task, Profile, RecurrenceType } from '@prisma/client';
-import { computeNextDeadline } from '../utils/recurrence';
+import { calculateNextDeadline } from '../utils/recurrence';
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
 import { resolveTaskPermission, TaskPermissionError } from '../utils/taskPermissions';
 import * as realtimeService from './realtimeService';
@@ -26,11 +26,11 @@ export interface CreateTaskInput {
   status?: 'todo' | 'doing' | 'done';
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
-  deadline?: Date | null;
+  deadline?: string | null;
   departmentId?: string;
   isRecurring?: boolean;
-  recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
-  recurrenceEndDate?: Date | null;
+  recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
+  recurrenceEndDate?: string | null;
 }
 
 export interface UpdateTaskInput {
@@ -39,8 +39,10 @@ export interface UpdateTaskInput {
   status?: 'todo' | 'doing' | 'done';
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
-  deadline?: Date | null;
-  recurrenceEndDate?: Date | null;
+  deadline?: string | null;
+  isRecurring?: boolean;
+  recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
+  recurrenceEndDate?: string | null;
 }
 
 export interface GetTasksInput {
@@ -52,8 +54,6 @@ export interface GetTasksInput {
   limit?: number;
   sortBy?: 'deadline' | 'createdAt' | 'priority' | 'status' | 'title';
   order?: 'asc' | 'desc';
-  deadlineFrom?: Date;
-  deadlineTo?: Date;
 }
 
 // ─── Error ────────────────────────────────────────────────────────────────────
@@ -135,22 +135,34 @@ export class TaskService {
       }
     }
 
+    if (input.isRecurring) {
+      if (!input.recurrenceType) {
+        throw new TaskServiceError('recurrenceType is required for recurring tasks', 400);
+      }
+      if (!input.deadline) {
+        throw new TaskServiceError('deadline is required for recurring tasks', 400);
+      }
+      if (input.recurrenceEndDate && new Date(input.recurrenceEndDate) <= new Date(input.deadline)) {
+        throw new TaskServiceError('The recurrence end date must be later than the task deadline', 400);
+      }
+    }
+
     const initialStatus = input.status ?? 'todo';
     const completedNow  = initialStatus === 'done' ? new Date() : undefined;
 
     const task = await this.taskRepo.create({
-      title:       input.title.trim(),
-      description: input.description ?? '',
-      status:      initialStatus,
-      priority:    input.priority    ?? 'medium',
-      tags:        input.tags        ?? [],
-      profileId:   profile.id,
-      ...(input.deadline        != null && { deadline:        input.deadline }),
+      title:             input.title.trim(),
+      description:       input.description ?? '',
+      status:            initialStatus,
+      priority:          input.priority ?? 'medium',
+      tags:              input.tags     ?? [],
+      profileId:         profile.id,
+      ...(input.deadline        != null && { deadline:        new Date(input.deadline) }),
       ...(input.departmentId    != null && { departmentId:    input.departmentId }),
       ...(completedNow !== undefined    && { completedAt:     completedNow }),
-      ...(input.isRecurring     != null && { isRecurring:     input.isRecurring }),
-      ...(input.recurrenceType  != null && { recurrenceType:  input.recurrenceType as RecurrenceType }),
-      ...(input.recurrenceEndDate != null && { recurrenceEndDate: input.recurrenceEndDate }),
+      isRecurring:       input.isRecurring ?? false,
+      ...(input.recurrenceType    != null && { recurrenceType:    input.recurrenceType as RecurrenceType }),
+      ...(input.recurrenceEndDate != null && { recurrenceEndDate: new Date(input.recurrenceEndDate) }),
     });
 
     return mapPrismaTaskToResponseDTO({ ...task, profile });
@@ -178,12 +190,10 @@ export class TaskService {
     }
 
     const filter: TaskFilterOptions = {};
-    if (query.status)        filter.status        = query.status;
-    if (query.priority)      filter.priority      = query.priority;
-    if (query.search)        filter.search        = query.search;
-    if (query.tag)           filter.tag           = query.tag;
-    if (query.deadlineFrom)  filter.deadlineFrom  = query.deadlineFrom;
-    if (query.deadlineTo)    filter.deadlineTo    = query.deadlineTo;
+    if (query.status)   filter.status   = query.status;
+    if (query.priority) filter.priority = query.priority;
+    if (query.search)   filter.search   = query.search;
+    if (query.tag)      filter.tag      = query.tag;
 
     const sort: TaskSortOptions = {};
     if (query.sortBy) sort.sortBy = query.sortBy;
@@ -251,8 +261,10 @@ export class TaskService {
     if (input.description       !== undefined) data.description       = input.description;
     if (input.priority          !== undefined) data.priority          = input.priority;
     if (input.tags              !== undefined) data.tags              = input.tags;
-    if (input.deadline          !== undefined) data.deadline          = input.deadline;
-    if (input.recurrenceEndDate !== undefined) data.recurrenceEndDate = input.recurrenceEndDate;
+    if (input.deadline          !== undefined) data.deadline          = input.deadline ? new Date(input.deadline) : null;
+    if (input.isRecurring       !== undefined) data.isRecurring       = input.isRecurring;
+    if (input.recurrenceType    !== undefined) data.recurrenceType    = input.recurrenceType as RecurrenceType | null;
+    if (input.recurrenceEndDate !== undefined) data.recurrenceEndDate = input.recurrenceEndDate ? new Date(input.recurrenceEndDate) : null;
 
     // completedAt is server-managed only — client cannot inject this value.
     // Transition: non-done → done sets it once; done → non-done clears it;
@@ -272,10 +284,10 @@ export class TaskService {
 
     // Auto-spawn next recurring instance when marking done
     if (isCompletingNow && task.isRecurring && task.recurrenceType && task.deadline) {
-      const nextDeadline = computeNextDeadline(task.deadline, task.recurrenceType);
+      const nextDeadline = calculateNextDeadline(task.deadline, task.recurrenceType);
       const withinWindow = !task.recurrenceEndDate || nextDeadline <= task.recurrenceEndDate;
       if (withinWindow) {
-        void this.taskRepo.create({
+        await this.taskRepo.create({
           title:              task.title,
           description:        task.description,
           priority:           task.priority as 'low' | 'medium' | 'high',

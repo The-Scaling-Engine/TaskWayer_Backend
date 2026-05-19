@@ -8,8 +8,8 @@ export const createTaskSchema = z.object({
   tags:              z.array(z.string().trim()).optional(),
   deadline:          z.string().datetime({ offset: true }).nullable().optional(),
   departmentId:      z.string().uuid('Invalid departmentId').optional(),
-  isRecurring:       z.boolean().optional(),
-  recurrenceType:    z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']).optional(),
+  isRecurring:       z.boolean().default(false),
+  recurrenceType:    z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']).optional().nullable(),
   recurrenceEndDate: z.string().datetime({ offset: true }).nullable().optional(),
 }).superRefine((data, ctx) => {
   if (data.isRecurring) {
@@ -17,7 +17,7 @@ export const createTaskSchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'deadline is required for recurring tasks', path: ['deadline'] });
     }
     if (!data.recurrenceType) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'recurrenceType is required when isRecurring is true', path: ['recurrenceType'] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select how often this task repeats (daily, weekly, monthly, or yearly)', path: ['recurrenceType'] });
     }
   }
 });
@@ -30,20 +30,20 @@ export const updateTaskSchema = z.object({
   priority:          z.enum(['low', 'medium', 'high']).optional(),
   tags:              z.array(z.string().trim()).optional(),
   deadline:          z.string().datetime({ offset: true }).nullable().optional(),
+  isRecurring:       z.boolean().optional(),
+  recurrenceType:    z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']).optional().nullable(),
   recurrenceEndDate: z.string().datetime({ offset: true }).nullable().optional(),
 });
 export type UpdateTaskBody = z.infer<typeof updateTaskSchema>;
 
 export const getTasksQuerySchema = z.object({
-  page:          z.coerce.number().int().positive().max(1000).default(1),
-  limit:         z.coerce.number().int().positive().max(100).default(10),
-  status:        z.enum(['todo', 'doing', 'done']).optional(),
-  priority:      z.enum(['low', 'medium', 'high']).optional(),
-  search:        z.string().trim().optional(),
-  tag:           z.string().trim().optional(),
-  sortBy:        z.enum(['deadline', 'createdAt', 'priority', 'status', 'title']).optional(),
-  order:         z.enum(['asc', 'desc']).optional(),
-  deadlineFrom:  z.string().datetime({ offset: true }).optional(),
-  deadlineTo:    z.string().datetime({ offset: true }).optional(),
+  page:     z.coerce.number().int().positive().max(1000).default(1),
+  limit:    z.coerce.number().int().positive().max(100).default(10),
+  status:   z.enum(['todo', 'doing', 'done']).optional(),
+  priority: z.enum(['low', 'medium', 'high']).optional(),
+  search:   z.string().trim().optional(),
+  tag:      z.string().trim().optional(),
+  sortBy:   z.enum(['deadline', 'createdAt', 'priority', 'status', 'title']).optional(),
+  order:    z.enum(['asc', 'desc']).optional(),
 });
 export type GetTasksQuery = z.infer<typeof getTasksQuerySchema>;
