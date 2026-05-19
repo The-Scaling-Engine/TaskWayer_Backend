@@ -20,6 +20,10 @@ export interface TaskResponseDTO {
   deadline: Date | null;
   completedAt: Date | null;
   userId: string;
+  isRecurring: boolean;
+  recurrenceType: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
+  recurrenceEndDate: Date | null;
+  recurrenceParentId: string | null;
   createdAt: Date;
   updatedAt: Date;
   __v: number; // Mongoose compatibility field — always 0 for Prisma

@@ -1,4 +1,4 @@
-import { Profile, Department, Task, DepartmentMember, DepartmentInvitation, DepartmentMemberRole, MembershipStatus, Comment, Notification, NotificationType } from '@prisma/client';
+import { Profile, Department, Task, DepartmentMember, DepartmentInvitation, DepartmentMemberRole, MembershipStatus, Comment, Notification, NotificationType, RecurrenceType } from '@prisma/client';
 
 // ─── Profile DTOs ─────────────────────────────────────────────
 
@@ -213,6 +213,10 @@ export interface CreateTaskData {
   profileId: string;
   departmentId?: string;
   mongoId?: string;
+  isRecurring?: boolean;
+  recurrenceType?: RecurrenceType;
+  recurrenceEndDate?: Date | null;
+  recurrenceParentId?: string;
 }
 
 export interface UpdateTaskData {
@@ -224,6 +228,10 @@ export interface UpdateTaskData {
   deadline?: Date | null;
   completedAt?: Date | null;
   departmentId?: string | null;
+  isRecurring?: boolean;
+  recurrenceType?: RecurrenceType | null;
+  recurrenceEndDate?: Date | null;
+  recurrenceParentId?: string | null;
 }
 
 export interface TaskFilterOptions {

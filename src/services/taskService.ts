@@ -27,6 +27,9 @@ export interface CreateTaskInput {
   tags?: string[];
   deadline?: Date | null;
   departmentId?: string;
+  isRecurring?: boolean;
+  recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  recurrenceEndDate?: Date | null;
 }
 
 export interface UpdateTaskInput {
@@ -36,6 +39,7 @@ export interface UpdateTaskInput {
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: Date | null;
+  recurrenceEndDate?: Date | null;
 }
 
 export interface GetTasksInput {
@@ -47,6 +51,8 @@ export interface GetTasksInput {
   limit?: number;
   sortBy?: 'deadline' | 'createdAt' | 'priority' | 'status' | 'title';
   order?: 'asc' | 'desc';
+  deadlineFrom?: Date;
+  deadlineTo?: Date;
 }
 
 // ─── Error ────────────────────────────────────────────────────────────────────

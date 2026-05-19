@@ -1,4 +1,4 @@
-import { Task as PrismaTask } from '@prisma/client';
+import { Task as PrismaTask, RecurrenceType } from '@prisma/client';
 import { TaskResponseDTO } from './taskResponse.dto';
 
 /**
@@ -25,6 +25,10 @@ export const mapPrismaTaskToResponseDTO = (task: PrismaTask & { profile?: { mong
     deadline: task.deadline,
     completedAt: task.completedAt ?? null,
     userId: task.profile?.mongoId ?? task.profileId,
+    isRecurring: task.isRecurring,
+    recurrenceType: (task.recurrenceType as RecurrenceType | null) ?? null,
+    recurrenceEndDate: task.recurrenceEndDate ?? null,
+    recurrenceParentId: task.recurrenceParentId ?? null,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     __v: 0,
