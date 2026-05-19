@@ -42,6 +42,21 @@ enum NotificationType {
   MENTIONED_IN_COMMENT
   TASK_UPDATED
   DEADLINE_SOON
+  TASK_DEADLINE_3D
+  TASK_DEADLINE_2D
+  TASK_DEADLINE_1D
+  TASK_DEADLINE_12H
+  TASK_DEADLINE_4H
+  TASK_DEADLINE_1H
+}
+
+// ─── Recurrence Enum ─────────────────────────────────────────
+
+enum RecurrenceType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
 }
 
 // ─── Department/RBAC Enums ───────────────────────────────────
@@ -163,34 +178,40 @@ model ActivityLog {
 }
 
 model Task {
-  id           String       @id @default(uuid())
-  title        String
-  description  String       @default("")
-  status       TaskStatus   @default(todo)
-  priority     TaskPriority @default(medium)
-  tags         String[]
-  deadline     DateTime?
-  mongoId      String?      @unique
-  profileId    String
-  profile      Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  departmentId String?
-  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  comments     Comment[]
-  timeSessions TimeTrackingSession[]
-  completedAt  DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id                  String          @id @default(uuid())
+  title               String
+  description         String          @default("")
+  status              TaskStatus      @default(todo)
+  priority            TaskPriority    @default(medium)
+  tags                String[]
+  deadline            DateTime?
+  mongoId             String?         @unique
+  profileId           String
+  profile             Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  departmentId        String?
+  department          Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  comments            Comment[]
+  timeSessions        TimeTrackingSession[]
+  completedAt         DateTime?
+  isRecurring         Boolean         @default(false)
+  recurrenceType      RecurrenceType?
+  recurrenceEndDate   DateTime?
+  recurrenceParentId  String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 
   @@index([profileId])
   @@index([departmentId])
   @@index([status])
   @@index([title])
   @@index([createdAt])
+  @@index([deadline])
   @@index([profileId, status])
   @@index([departmentId, status])
   @@index([profileId, completedAt])
   @@index([departmentId, completedAt])
   @@index([completedAt])
+  @@index([recurrenceParentId])
   @@map("tasks")
 }
 
