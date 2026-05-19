@@ -239,6 +239,8 @@ export interface TaskFilterOptions {
   priority?: string;
   tag?: string;
   search?: string;
+  deadlineFrom?: Date;
+  deadlineTo?: Date;
 }
 
 export interface TaskSortOptions {

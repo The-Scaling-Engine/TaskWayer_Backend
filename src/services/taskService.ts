@@ -1,4 +1,5 @@
-import { Task, Profile } from '@prisma/client';
+import { Task, Profile, RecurrenceType } from '@prisma/client';
+import { computeNextDeadline } from '../utils/recurrence';
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
 import { resolveTaskPermission, TaskPermissionError } from '../utils/taskPermissions';
 import * as realtimeService from './realtimeService';
@@ -144,9 +145,12 @@ export class TaskService {
       priority:    input.priority    ?? 'medium',
       tags:        input.tags        ?? [],
       profileId:   profile.id,
-      ...(input.deadline     != null && { deadline:     input.deadline }),
-      ...(input.departmentId != null && { departmentId: input.departmentId }),
-      ...(completedNow !== undefined  && { completedAt:  completedNow }),
+      ...(input.deadline        != null && { deadline:        input.deadline }),
+      ...(input.departmentId    != null && { departmentId:    input.departmentId }),
+      ...(completedNow !== undefined    && { completedAt:     completedNow }),
+      ...(input.isRecurring     != null && { isRecurring:     input.isRecurring }),
+      ...(input.recurrenceType  != null && { recurrenceType:  input.recurrenceType as RecurrenceType }),
+      ...(input.recurrenceEndDate != null && { recurrenceEndDate: input.recurrenceEndDate }),
     });
 
     return mapPrismaTaskToResponseDTO({ ...task, profile });
@@ -174,10 +178,12 @@ export class TaskService {
     }
 
     const filter: TaskFilterOptions = {};
-    if (query.status)   filter.status   = query.status;
-    if (query.priority) filter.priority = query.priority;
-    if (query.search)   filter.search   = query.search;
-    if (query.tag)      filter.tag      = query.tag;
+    if (query.status)        filter.status        = query.status;
+    if (query.priority)      filter.priority      = query.priority;
+    if (query.search)        filter.search        = query.search;
+    if (query.tag)           filter.tag           = query.tag;
+    if (query.deadlineFrom)  filter.deadlineFrom  = query.deadlineFrom;
+    if (query.deadlineTo)    filter.deadlineTo    = query.deadlineTo;
 
     const sort: TaskSortOptions = {};
     if (query.sortBy) sort.sortBy = query.sortBy;
@@ -241,20 +247,21 @@ export class TaskService {
     await this.resolveTaskPermission(task, profileId, profile, 'write');
 
     const data: UpdateTaskData = {};
-    if (input.title       !== undefined) data.title       = input.title;
-    if (input.description !== undefined) data.description = input.description;
-    if (input.priority    !== undefined) data.priority    = input.priority;
-    if (input.tags        !== undefined) data.tags        = input.tags;
-    if (input.deadline    !== undefined) data.deadline    = input.deadline;
+    if (input.title             !== undefined) data.title             = input.title;
+    if (input.description       !== undefined) data.description       = input.description;
+    if (input.priority          !== undefined) data.priority          = input.priority;
+    if (input.tags              !== undefined) data.tags              = input.tags;
+    if (input.deadline          !== undefined) data.deadline          = input.deadline;
+    if (input.recurrenceEndDate !== undefined) data.recurrenceEndDate = input.recurrenceEndDate;
 
     // completedAt is server-managed only — client cannot inject this value.
     // Transition: non-done → done sets it once; done → non-done clears it;
     // done → done preserves the original timestamp (no reset).
+    const isCompletingNow = input.status === 'done' && task.status !== 'done';
     if (input.status !== undefined) {
       data.status = input.status;
-      if (input.status === 'done' && task.status !== 'done') {
-        const completedNow = new Date();
-        data.completedAt = completedNow;
+      if (isCompletingNow) {
+        data.completedAt = new Date();
       } else if (input.status !== 'done') {
         data.completedAt = null;
       }
@@ -262,6 +269,27 @@ export class TaskService {
     }
 
     const updated = await this.taskRepo.update(task.id, data);
+
+    // Auto-spawn next recurring instance when marking done
+    if (isCompletingNow && task.isRecurring && task.recurrenceType && task.deadline) {
+      const nextDeadline = computeNextDeadline(task.deadline, task.recurrenceType);
+      const withinWindow = !task.recurrenceEndDate || nextDeadline <= task.recurrenceEndDate;
+      if (withinWindow) {
+        void this.taskRepo.create({
+          title:              task.title,
+          description:        task.description,
+          priority:           task.priority as 'low' | 'medium' | 'high',
+          tags:               task.tags,
+          profileId:          task.profileId,
+          ...(task.departmentId && { departmentId: task.departmentId }),
+          isRecurring:        true,
+          recurrenceType:     task.recurrenceType,
+          recurrenceEndDate:  task.recurrenceEndDate,
+          recurrenceParentId: task.recurrenceParentId ?? task.id,
+          deadline:           nextDeadline,
+        });
+      }
+    }
 
     // Emit realtime to all subscribers of this task room
     realtimeService.emitTaskUpdated(task.id, {

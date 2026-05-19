@@ -14,7 +14,7 @@ export const createTaskSchema = z.object({
 }).superRefine((data, ctx) => {
   if (data.isRecurring) {
     if (!data.deadline) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'deadline is required when isRecurring is true', path: ['deadline'] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'deadline is required for recurring tasks', path: ['deadline'] });
     }
     if (!data.recurrenceType) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'recurrenceType is required when isRecurring is true', path: ['recurrenceType'] });
