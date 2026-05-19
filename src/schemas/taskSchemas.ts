@@ -37,13 +37,15 @@ export const updateTaskSchema = z.object({
 export type UpdateTaskBody = z.infer<typeof updateTaskSchema>;
 
 export const getTasksQuerySchema = z.object({
-  page:     z.coerce.number().int().positive().max(1000).default(1),
-  limit:    z.coerce.number().int().positive().max(100).default(10),
-  status:   z.enum(['todo', 'doing', 'done']).optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
-  search:   z.string().trim().optional(),
-  tag:      z.string().trim().optional(),
-  sortBy:   z.enum(['deadline', 'createdAt', 'priority', 'status', 'title']).optional(),
-  order:    z.enum(['asc', 'desc']).optional(),
+  page:         z.coerce.number().int().positive().max(1000).default(1),
+  limit:        z.coerce.number().int().positive().max(100).default(10),
+  status:       z.enum(['todo', 'doing', 'done']).optional(),
+  priority:     z.enum(['low', 'medium', 'high']).optional(),
+  search:       z.string().trim().optional(),
+  tag:          z.string().trim().optional(),
+  sortBy:       z.enum(['deadline', 'createdAt', 'priority', 'status', 'title']).optional(),
+  order:        z.enum(['asc', 'desc']).optional(),
+  deadlineFrom: z.string().date().optional(),
+  deadlineTo:   z.string().date().optional(),
 });
 export type GetTasksQuery = z.infer<typeof getTasksQuerySchema>;

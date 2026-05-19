@@ -238,6 +238,8 @@ export interface TaskFilterOptions {
   priority?: string;
   tag?: string;
   search?: string;
+  deadlineFrom?: string;
+  deadlineTo?:   string;
 }
 
 export interface TaskSortOptions {

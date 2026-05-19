@@ -83,6 +83,13 @@ export class PrismaTaskRepository implements ITaskRepository {
       };
     }
 
+    if (filter.deadlineFrom || filter.deadlineTo) {
+      const deadlineFilter: Prisma.DateTimeNullableFilter = {};
+      if (filter.deadlineFrom) deadlineFilter.gte = new Date(`${filter.deadlineFrom}T00:00:00.000Z`);
+      if (filter.deadlineTo)   deadlineFilter.lte = new Date(`${filter.deadlineTo}T23:59:59.999Z`);
+      additionalFilters.deadline = deadlineFilter;
+    }
+
     const where: Prisma.TaskWhereInput = {
       AND: [baseScope, additionalFilters],
     };

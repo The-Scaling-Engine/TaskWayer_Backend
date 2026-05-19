@@ -54,6 +54,8 @@ export interface GetTasksInput {
   limit?: number;
   sortBy?: 'deadline' | 'createdAt' | 'priority' | 'status' | 'title';
   order?: 'asc' | 'desc';
+  deadlineFrom?: string;
+  deadlineTo?:   string;
 }
 
 // ─── Error ────────────────────────────────────────────────────────────────────
@@ -190,10 +192,12 @@ export class TaskService {
     }
 
     const filter: TaskFilterOptions = {};
-    if (query.status)   filter.status   = query.status;
-    if (query.priority) filter.priority = query.priority;
-    if (query.search)   filter.search   = query.search;
-    if (query.tag)      filter.tag      = query.tag;
+    if (query.status)        filter.status        = query.status;
+    if (query.priority)      filter.priority      = query.priority;
+    if (query.search)        filter.search        = query.search;
+    if (query.tag)           filter.tag           = query.tag;
+    if (query.deadlineFrom)  filter.deadlineFrom  = query.deadlineFrom;
+    if (query.deadlineTo)    filter.deadlineTo    = query.deadlineTo;
 
     const sort: TaskSortOptions = {};
     if (query.sortBy) sort.sortBy = query.sortBy;
