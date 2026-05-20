@@ -11,6 +11,10 @@ const MIGRATIONS = [
   '20260514140000_add_task_completed_at',
   '20260514160000_add_time_tracking_sessions',
   '20260514180000_add_job_title_to_profile',
+  '20260518000000_supabase_auth_migration',
+  '20260519000000_add_recurring_task_fields',
+  '20260519100000_rename_deadline_notification_types',
+  '20260520085406_add_scheduled_at',
 ];
 
 const isWin = process.platform === 'win32';
