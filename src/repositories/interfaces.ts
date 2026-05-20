@@ -209,6 +209,7 @@ export interface CreateTaskData {
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: Date;
+  scheduledAt?: Date | null;
   completedAt?: Date;
   profileId: string;
   departmentId?: string;
@@ -226,6 +227,7 @@ export interface UpdateTaskData {
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: Date | null;
+  scheduledAt?: Date | null;
   completedAt?: Date | null;
   departmentId?: string | null;
   isRecurring?: boolean;
@@ -238,8 +240,12 @@ export interface TaskFilterOptions {
   priority?: string;
   tag?: string;
   search?: string;
-  deadlineFrom?: string;
-  deadlineTo?:   string;
+  deadlineFrom?:   string;
+  deadlineTo?:     string;
+  createdFrom?:    string;
+  createdTo?:      string;
+  scheduledFrom?:  string;
+  scheduledTo?:    string;
 }
 
 export interface TaskSortOptions {
@@ -342,6 +348,7 @@ export interface ITaskRepository {
   getMemberTasksInDepartment(profileId: string, departmentId: string, filter: MemberTaskFilterOptions, page: number, limit: number): Promise<PaginatedTasksResult>;
   getWorkloadByMemberIds(memberIds: string[], departmentId: string): Promise<Map<string, WorkloadTaskStats>>;
   create(data: CreateTaskData): Promise<Task>;
+  createMany(data: CreateTaskData[]): Promise<void>;
   update(id: string, data: UpdateTaskData): Promise<Task>;
   delete(id: string): Promise<void>;
   count(profileId: string): Promise<number>;

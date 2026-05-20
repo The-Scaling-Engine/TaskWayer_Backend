@@ -47,8 +47,8 @@ async function processWindow(
     if (existing) continue;
 
     const title   = `Task deadline in ${label}`;
-    const message = `Your task "${task.title}" is due in ${label}.`;
-    const payload = { taskId: task.id, deadline: task.deadline?.toISOString() };
+    const message = `Your task "${task.title}" is due in ${label}. Created: ${task.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.`;
+    const payload = { taskId: task.id, deadline: task.deadline?.toISOString(), createdAt: task.createdAt.toISOString() };
 
     // Create system notification record
     const notification = await prisma.notification.create({
@@ -80,7 +80,7 @@ async function processWindow(
       email:   task.profile.email,
       subject: `Deadline reminder: ${task.title}`,
       message,
-      html: buildDeadlineEmailHtml(task.title, task.profile.name, label, task.deadline),
+      html: buildDeadlineEmailHtml(task.title, task.profile.name, label, task.deadline, task.createdAt),
     }).catch(err =>
       logger.error({ err, taskId: task.id }, 'deadline notification email failed')
     );
@@ -93,11 +93,14 @@ function buildDeadlineEmailHtml(
   taskTitle: string,
   userName: string | null,
   label: string,
-  deadline: Date | null
+  deadline: Date | null,
+  createdAt: Date
 ): string {
   const deadlineStr = deadline
     ? deadline.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })
     : 'N/A';
+
+  const createdAtStr = createdAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
 
   const safe = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -119,6 +122,10 @@ function buildDeadlineEmailHtml(
           <td style="padding:8px;background:#f7fafc;font-weight:bold;">Time left</td>
           <td style="padding:8px;">${safe(label)}</td>
         </tr>
+        <tr>
+          <td style="padding:8px;background:#f7fafc;font-weight:bold;">Created</td>
+          <td style="padding:8px;">${safe(createdAtStr)}</td>
+        </tr>
       </table>
       <div style="margin-top:24px;">
         <a href="${ctaUrl}"
@@ -127,7 +134,7 @@ function buildDeadlineEmailHtml(
         </a>
       </div>
       <p style="margin-top:24px;color:#718096;font-size:13px;">
-        You are receiving this because you have an upcoming task deadline on MicroDo.
+        You are receiving this because you have an upcoming task deadline on TasksWayer.
       </p>
     </div>
   `;

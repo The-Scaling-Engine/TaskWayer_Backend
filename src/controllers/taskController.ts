@@ -34,18 +34,22 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
 
 export const getTasks = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { page, limit, status, priority, search, tag, sortBy, order, deadlineFrom, deadlineTo } =
+    const { page, limit, status, priority, search, tag, sortBy, order, deadlineFrom, deadlineTo, createdFrom, createdTo, scheduledFrom, scheduledTo } =
       res.locals.validated.query as GetTasksQuery;
 
     const query: GetTasksInput = { page, limit };
-    if (status       !== undefined) query.status       = status;
-    if (priority     !== undefined) query.priority     = priority;
-    if (search       !== undefined) query.search       = search;
-    if (tag          !== undefined) query.tag          = tag;
-    if (sortBy       !== undefined) query.sortBy       = sortBy;
-    if (order        !== undefined) query.order        = order;
-    if (deadlineFrom !== undefined) query.deadlineFrom = deadlineFrom;
-    if (deadlineTo   !== undefined) query.deadlineTo   = deadlineTo;
+    if (status         !== undefined) query.status         = status;
+    if (priority       !== undefined) query.priority       = priority;
+    if (search         !== undefined) query.search         = search;
+    if (tag            !== undefined) query.tag            = tag;
+    if (sortBy         !== undefined) query.sortBy         = sortBy;
+    if (order          !== undefined) query.order          = order;
+    if (deadlineFrom   !== undefined) query.deadlineFrom   = deadlineFrom;
+    if (deadlineTo     !== undefined) query.deadlineTo     = deadlineTo;
+    if (createdFrom    !== undefined) query.createdFrom    = createdFrom;
+    if (createdTo      !== undefined) query.createdTo      = createdTo;
+    if (scheduledFrom  !== undefined) query.scheduledFrom  = scheduledFrom;
+    if (scheduledTo    !== undefined) query.scheduledTo    = scheduledTo;
 
     const result = await taskService.getTasks(req.user!.prismaId, query);
     res.status(200).json(result);

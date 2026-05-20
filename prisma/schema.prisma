@@ -197,6 +197,7 @@ model Task {
   recurrenceType      RecurrenceType?
   recurrenceEndDate   DateTime?
   recurrenceParentId  String?
+  scheduledAt         DateTime?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
@@ -206,6 +207,8 @@ model Task {
   @@index([title])
   @@index([createdAt])
   @@index([deadline])
+  @@index([scheduledAt])
+  @@index([profileId, scheduledAt])
   @@index([profileId, status])
   @@index([departmentId, status])
   @@index([profileId, completedAt])

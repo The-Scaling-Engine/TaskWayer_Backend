@@ -18,7 +18,9 @@ export interface TaskResponseDTO {
   priority: 'low' | 'medium' | 'high';
   tags: string[];
   deadline: Date | null;
+  scheduledAt: Date | null;
   completedAt: Date | null;
+  departmentId: string | null;
   userId: string;
   isRecurring: boolean;
   recurrenceType: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;

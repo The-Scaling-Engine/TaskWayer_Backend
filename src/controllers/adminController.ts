@@ -5,7 +5,64 @@ import supabaseAdmin from '../config/supabase';
 import { env } from '../config/env';
 import logger from '../config/logger';
 import { sendError } from '../utils/apiResponse';
+import sendEmail from '../utils/email';
 import type { GetUsersQuery, CreateUserInput } from '../schemas/adminSchemas';
+
+const buildInviteEmail = (inviteLink: string): string => `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background-color:#f0fdf4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4;padding:48px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;">
+        <tr>
+          <td style="background:linear-gradient(135deg,#10BA41 0%,#047857 100%);border-radius:16px 16px 0 0;padding:28px 40px;text-align:center;">
+            <span style="font-size:22px;font-weight:800;color:#ffffff;">&#10003; TasksWayero</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#ffffff;padding:40px;border-left:1px solid #d1fae5;border-right:1px solid #d1fae5;">
+            <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;">Invitation</p>
+            <h1 style="margin:0 0 20px;font-size:26px;font-weight:800;color:#111827;">You've been invited!</h1>
+            <p style="margin:0 0 28px;font-size:15px;color:#374151;line-height:1.7;">
+              An administrator has created an account for you on <strong style="color:#059669;">TasksWayero</strong>.<br><br>
+              Click the button below to set up your password and get started.
+            </p>
+            <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
+              <tr>
+                <td style="border-radius:12px;background:linear-gradient(135deg,#10BA41 0%,#059669 100%);box-shadow:0 4px 14px rgba(16,186,65,0.35);">
+                  <a href="${inviteLink}" style="display:inline-block;padding:16px 44px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">
+                    Set Up My Password &rarr;
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;">
+                  <p style="margin:0;font-size:13px;color:#166534;">&#9200; This link expires in <strong>24 hours</strong>. If it expires, ask your administrator to resend the invitation.</p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;line-height:1.6;">
+              Button not working? Copy this link:<br>
+              <a href="${inviteLink}" style="color:#10BA41;word-break:break-all;font-size:11px;">${inviteLink}</a>
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f9fafb;border:1px solid #d1fae5;border-top:0;border-radius:0 0 16px 16px;padding:22px 40px;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#9ca3af;">
+              You received this because an administrator invited you to <strong>TasksWayero</strong>.<br>
+              If you didn't expect this, you can safely ignore this email.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 
 export const getDashboard = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -135,6 +192,7 @@ export const unbanUser = async (req: AuthRequest, res: Response): Promise<void> 
 
 export const createUser = async (req: AuthRequest, res: Response): Promise<void> => {
   let supabaseUserId: string | null = null;
+  let profileId: string | null = null;
 
   try {
     const { name, username, email } = res.locals.validated.body as CreateUserInput;
@@ -153,19 +211,21 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Invite via Supabase — Supabase handles email delivery to any address
-    const { data, error: supabaseError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data:       { name, username },
-      redirectTo: `${env.CLIENT_URL}/reset-password`,
+    // Generate invite link via Supabase (creates user + returns action_link for manual delivery)
+    const { data, error: supabaseError } = await supabaseAdmin.auth.admin.generateLink({
+      type:    'invite',
+      email,
+      options: { data: { name, username }, redirectTo: `${env.CLIENT_URL}/reset-password` },
     });
 
-    if (supabaseError || !data.user) {
-      logger.error({ err: supabaseError, email }, 'Supabase inviteUserByEmail failed');
-      sendError(res, req, 500, 'INTERNAL_ERROR', 'Failed to send invitation email. Please try again.');
+    if (supabaseError || !data?.user) {
+      logger.error({ err: supabaseError, email }, 'Supabase generateLink failed');
+      sendError(res, req, 500, 'INTERNAL_ERROR', 'Failed to generate invitation link. Please try again.');
       return;
     }
 
     supabaseUserId = data.user.id;
+    const inviteLink = data.properties.action_link;
 
     // Create Profile in our DB
     const profile = await prisma.profile.create({
@@ -177,6 +237,15 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
         role:   'USER',
         status: 'ACTIVE',
       },
+    });
+    profileId = profile.id;
+
+    // Send invite email via Resend HTTP API (same mechanism as deadline notifications)
+    await sendEmail({
+      email,
+      subject: 'You have been invited to TasksWayero',
+      message: `You have been invited to TasksWayero. Click here to set up your password: ${inviteLink}`,
+      html:    buildInviteEmail(inviteLink),
     });
 
     logger.info({ adminId: req.user!.prismaId, newUserId: profile.id, email }, 'Admin created new user');
@@ -195,6 +264,7 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
       },
     });
   } catch (error) {
+    if (profileId) await prisma.profile.delete({ where: { id: profileId } }).catch(() => {});
     if (supabaseUserId) await supabaseAdmin.auth.admin.deleteUser(supabaseUserId).catch(() => {});
     logger.error({ err: error, requestId: req.requestId }, 'createUser failed');
     sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');

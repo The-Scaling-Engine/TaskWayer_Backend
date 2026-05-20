@@ -87,7 +87,7 @@ export const inviteMember = async (
   try {
     await sendEmail({
       email,
-      subject: `You've been invited to join "${dept.name}" on MicroDo`,
+      subject: `You've been invited to join "${dept.name}" on TasksWayer`,
       message:
         `You have been invited to join the department "${dept.name}" as ${role}.\n\n` +
         `Accept your invitation here (valid for ${EXPIRY_DAYS} days):\n\n${acceptUrl}\n\n` +

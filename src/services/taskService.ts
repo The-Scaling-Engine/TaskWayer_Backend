@@ -1,5 +1,5 @@
 import { Task, Profile, RecurrenceType } from '@prisma/client';
-import { calculateNextDeadline } from '../utils/recurrence';
+import { generateRecurrenceDates } from '../utils/recurrence';
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
 import { resolveTaskPermission, TaskPermissionError } from '../utils/taskPermissions';
 import * as realtimeService from './realtimeService';
@@ -7,12 +7,14 @@ import {
   ITaskRepository,
   IProfileRepository,
   IMembershipRepository,
+  CreateTaskData,
   UpdateTaskData,
   TaskFilterOptions,
   TaskSortOptions,
   TaskPaginationOptions,
   TaskStatsResult,
 } from '../repositories/interfaces';
+import logger from '../config/logger';
 import { buildScopedTaskFilter } from '../utils/taskQueryBuilder';
 import { mapPrismaTaskToResponseDTO } from '../dto/task/taskMapper';
 import { TaskResponseDTO } from '../dto/task/taskResponse.dto';
@@ -27,6 +29,7 @@ export interface CreateTaskInput {
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: string | null;
+  scheduledAt?: string | null;
   departmentId?: string;
   isRecurring?: boolean;
   recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
@@ -40,6 +43,7 @@ export interface UpdateTaskInput {
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: string | null;
+  scheduledAt?: string | null;
   isRecurring?: boolean;
   recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
   recurrenceEndDate?: string | null;
@@ -54,8 +58,12 @@ export interface GetTasksInput {
   limit?: number;
   sortBy?: 'deadline' | 'createdAt' | 'priority' | 'status' | 'title';
   order?: 'asc' | 'desc';
-  deadlineFrom?: string;
-  deadlineTo?:   string;
+  deadlineFrom?:   string;
+  deadlineTo?:     string;
+  createdFrom?:    string;
+  createdTo?:      string;
+  scheduledFrom?:  string;
+  scheduledTo?:    string;
 }
 
 // ─── Error ────────────────────────────────────────────────────────────────────
@@ -159,6 +167,7 @@ export class TaskService {
       priority:          input.priority ?? 'medium',
       tags:              input.tags     ?? [],
       profileId:         profile.id,
+      scheduledAt:       input.scheduledAt ? new Date(input.scheduledAt) : new Date(),
       ...(input.deadline        != null && { deadline:        new Date(input.deadline) }),
       ...(input.departmentId    != null && { departmentId:    input.departmentId }),
       ...(completedNow !== undefined    && { completedAt:     completedNow }),
@@ -166,6 +175,52 @@ export class TaskService {
       ...(input.recurrenceType    != null && { recurrenceType:    input.recurrenceType as RecurrenceType }),
       ...(input.recurrenceEndDate != null && { recurrenceEndDate: new Date(input.recurrenceEndDate) }),
     });
+
+    // Pre-generate all future instances so they appear on the calendar immediately
+    if (task.isRecurring && task.scheduledAt && task.recurrenceType) {
+      const futureDates = generateRecurrenceDates(
+        task.scheduledAt,
+        task.recurrenceType,
+        task.recurrenceEndDate
+      );
+
+      const deadlineOffsetMs =
+        task.deadline && task.scheduledAt
+          ? task.deadline.getTime() - task.scheduledAt.getTime()
+          : null;
+
+      const instances: CreateTaskData[] = futureDates.map((scheduledDate) => {
+        const deadline = deadlineOffsetMs !== null
+          ? new Date(scheduledDate.getTime() + deadlineOffsetMs)
+          : undefined;
+        return {
+          title:             task.title,
+          description:       task.description,
+          priority:          task.priority as 'low' | 'medium' | 'high',
+          tags:              task.tags,
+          profileId:         task.profileId,
+          scheduledAt:       scheduledDate,
+          ...(deadline !== undefined && { deadline }),
+          ...(task.departmentId    && { departmentId: task.departmentId }),
+          isRecurring:        true,
+          recurrenceType:     task.recurrenceType!,
+          recurrenceEndDate:  task.recurrenceEndDate,
+          recurrenceParentId: task.id,
+        };
+      });
+
+      if (instances.length > 0) {
+        try {
+          await this.taskRepo.createMany(instances);
+        } catch (err) {
+          // Compensating rollback: remove parent to avoid orphaned recurring task without instances
+          await this.taskRepo.delete(task.id).catch((delErr: unknown) =>
+            logger.error({ delErr, taskId: task.id }, 'createTask: parent rollback failed after createMany error')
+          );
+          throw err;
+        }
+      }
+    }
 
     return mapPrismaTaskToResponseDTO({ ...task, profile });
   }
@@ -198,6 +253,10 @@ export class TaskService {
     if (query.tag)           filter.tag           = query.tag;
     if (query.deadlineFrom)  filter.deadlineFrom  = query.deadlineFrom;
     if (query.deadlineTo)    filter.deadlineTo    = query.deadlineTo;
+    if (query.createdFrom)    filter.createdFrom    = query.createdFrom;
+    if (query.createdTo)      filter.createdTo      = query.createdTo;
+    if (query.scheduledFrom)  filter.scheduledFrom  = query.scheduledFrom;
+    if (query.scheduledTo)    filter.scheduledTo    = query.scheduledTo;
 
     const sort: TaskSortOptions = {};
     if (query.sortBy) sort.sortBy = query.sortBy;
@@ -266,6 +325,7 @@ export class TaskService {
     if (input.priority          !== undefined) data.priority          = input.priority;
     if (input.tags              !== undefined) data.tags              = input.tags;
     if (input.deadline          !== undefined) data.deadline          = input.deadline ? new Date(input.deadline) : null;
+    if (input.scheduledAt       !== undefined) data.scheduledAt       = input.scheduledAt ? new Date(input.scheduledAt) : null;
     if (input.isRecurring       !== undefined) data.isRecurring       = input.isRecurring;
     if (input.recurrenceType    !== undefined) data.recurrenceType    = input.recurrenceType as RecurrenceType | null;
     if (input.recurrenceEndDate !== undefined) data.recurrenceEndDate = input.recurrenceEndDate ? new Date(input.recurrenceEndDate) : null;
@@ -285,27 +345,6 @@ export class TaskService {
     }
 
     const updated = await this.taskRepo.update(task.id, data);
-
-    // Auto-spawn next recurring instance when marking done
-    if (isCompletingNow && task.isRecurring && task.recurrenceType && task.deadline) {
-      const nextDeadline = calculateNextDeadline(task.deadline, task.recurrenceType);
-      const withinWindow = !task.recurrenceEndDate || nextDeadline <= task.recurrenceEndDate;
-      if (withinWindow) {
-        await this.taskRepo.create({
-          title:              task.title,
-          description:        task.description,
-          priority:           task.priority as 'low' | 'medium' | 'high',
-          tags:               task.tags,
-          profileId:          task.profileId,
-          ...(task.departmentId && { departmentId: task.departmentId }),
-          isRecurring:        true,
-          recurrenceType:     task.recurrenceType,
-          recurrenceEndDate:  task.recurrenceEndDate,
-          recurrenceParentId: task.recurrenceParentId ?? task.id,
-          deadline:           nextDeadline,
-        });
-      }
-    }
 
     // Emit realtime to all subscribers of this task room
     realtimeService.emitTaskUpdated(task.id, {

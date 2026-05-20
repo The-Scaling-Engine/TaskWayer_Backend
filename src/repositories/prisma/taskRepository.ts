@@ -56,7 +56,7 @@ export class PrismaTaskRepository implements ITaskRepository {
 
     // ── Pagination bounds ──
     const page  = Math.max(1, pagination.page  ?? 1);
-    const limit = Math.min(50, Math.max(1, pagination.limit ?? 10));
+    const limit = Math.min(100, Math.max(1, pagination.limit ?? 10));
     const skip  = buildSkip(page, limit);
 
     // ── Build WHERE clause ──
@@ -88,6 +88,20 @@ export class PrismaTaskRepository implements ITaskRepository {
       if (filter.deadlineFrom) deadlineFilter.gte = new Date(`${filter.deadlineFrom}T00:00:00.000Z`);
       if (filter.deadlineTo)   deadlineFilter.lte = new Date(`${filter.deadlineTo}T23:59:59.999Z`);
       additionalFilters.deadline = deadlineFilter;
+    }
+
+    if (filter.createdFrom || filter.createdTo) {
+      const createdFilter: Prisma.DateTimeFilter = {};
+      if (filter.createdFrom) createdFilter.gte = new Date(`${filter.createdFrom}T00:00:00.000Z`);
+      if (filter.createdTo)   createdFilter.lte = new Date(`${filter.createdTo}T23:59:59.999Z`);
+      additionalFilters.createdAt = createdFilter;
+    }
+
+    if (filter.scheduledFrom || filter.scheduledTo) {
+      const scheduledFilter: Prisma.DateTimeNullableFilter = {};
+      if (filter.scheduledFrom) scheduledFilter.gte = new Date(`${filter.scheduledFrom}T00:00:00.000Z`);
+      if (filter.scheduledTo)   scheduledFilter.lte = new Date(`${filter.scheduledTo}T23:59:59.999Z`);
+      additionalFilters.scheduledAt = scheduledFilter;
     }
 
     const where: Prisma.TaskWhereInput = {
@@ -218,6 +232,11 @@ export class PrismaTaskRepository implements ITaskRepository {
 
   async create(data: CreateTaskData): Promise<Task> {
     return prisma.task.create({ data });
+  }
+
+  async createMany(data: CreateTaskData[]): Promise<void> {
+    if (data.length === 0) return;
+    await prisma.task.createMany({ data });
   }
 
   async update(id: string, data: UpdateTaskData): Promise<Task> {
