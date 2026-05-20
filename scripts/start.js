@@ -15,6 +15,7 @@ const MIGRATIONS = [
   '20260519000000_add_recurring_task_fields',
   '20260519100000_rename_deadline_notification_types',
   '20260520085406_add_scheduled_at',
+  '20260520200727_add_pending_user_status',
 ];
 
 const isWin = process.platform === 'win32';

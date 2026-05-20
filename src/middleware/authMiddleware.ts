@@ -55,6 +55,14 @@ export const protect = async (
       return;
     }
 
+    // Auto-upgrade PENDING → ACTIVE on first successful login
+    if (profile.status === 'PENDING') {
+      prisma.profile.update({
+        where: { id: profile.id },
+        data:  { status: 'ACTIVE' },
+      }).catch(err => logger.warn({ err }, 'PENDING→ACTIVE upgrade failed'));
+    }
+
     // Lazy-sync supabaseId on first login
     if (!profile.supabaseId) {
       prisma.profile.update({

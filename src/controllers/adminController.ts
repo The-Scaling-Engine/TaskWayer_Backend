@@ -40,7 +40,7 @@ const buildInviteEmail = (inviteLink: string): string => `<!DOCTYPE html>
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;">
-                  <p style="margin:0;font-size:13px;color:#166534;">&#9200; This link expires in <strong>24 hours</strong>. If it expires, ask your administrator to resend the invitation.</p>
+                  <p style="margin:0;font-size:13px;color:#166534;">&#9200; This link expires in <strong>1 hour</strong>. If it expires, ask your administrator to resend the invitation.</p>
                 </td>
               </tr>
             </table>
@@ -235,7 +235,7 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
         username,
         supabaseId: supabaseUserId,
         role:   'USER',
-        status: 'ACTIVE',
+        status: 'PENDING',
       },
     });
     profileId = profile.id;
@@ -267,6 +267,53 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
     if (profileId) await prisma.profile.delete({ where: { id: profileId } }).catch(() => {});
     if (supabaseUserId) await supabaseAdmin.auth.admin.deleteUser(supabaseUserId).catch(() => {});
     logger.error({ err: error, requestId: req.requestId }, 'createUser failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const resendInvite = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const profileId = req.params['id'] as string;
+
+    const profile = await prisma.profile.findUnique({
+      where:  { id: profileId },
+      select: { id: true, email: true, status: true, supabaseId: true },
+    });
+
+    if (!profile) {
+      sendError(res, req, 404, 'NOT_FOUND', 'User not found');
+      return;
+    }
+
+    if (profile.status !== 'PENDING') {
+      sendError(res, req, 400, 'BAD_REQUEST', 'User has already joined the system');
+      return;
+    }
+
+    const { data, error: supabaseError } = await supabaseAdmin.auth.admin.generateLink({
+      type:    'invite',
+      email:   profile.email,
+      options: { redirectTo: `${env.CLIENT_URL}/reset-password` },
+    });
+
+    if (supabaseError || !data?.properties?.action_link) {
+      logger.error({ err: supabaseError, email: profile.email }, 'Supabase generateLink failed on resend');
+      sendError(res, req, 500, 'INTERNAL_ERROR', 'Failed to generate invitation link. Please try again.');
+      return;
+    }
+
+    await sendEmail({
+      email:   profile.email,
+      subject: 'You have been invited to TasksWayero',
+      message: `You have been invited to TasksWayero. Click here to set up your password: ${data.properties.action_link}`,
+      html:    buildInviteEmail(data.properties.action_link),
+    });
+
+    logger.info({ adminId: req.user!.prismaId, targetUserId: profile.id, email: profile.email }, 'Admin resent invite');
+
+    res.status(200).json({ success: true, message: 'Invitation resent successfully' });
+  } catch (error) {
+    logger.error({ err: error, requestId: req.requestId }, 'resendInvite failed');
     sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };
