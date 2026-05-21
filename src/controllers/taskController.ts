@@ -8,6 +8,7 @@ import { PrismaMembershipRepository } from '../repositories/prisma/membershipRep
 import logger from '../config/logger';
 import { sendError, codeFor } from '../utils/apiResponse';
 import type { GetTasksQuery } from '../schemas/taskSchemas';
+import { getIO } from '../socket';
 
 const taskService = new TaskService(
   new PrismaTaskRepository(),
@@ -65,18 +66,47 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
 
 export const updateTask = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const taskId = req.params['id'] as string;
     const updatedTask = await taskService.updateTask(
       req.user!.prismaId,
-      req.params['id'] as string,
+      taskId,
       res.locals.validated.body as UpdateTaskInput
     );
     res.status(200).json({ success: true, message: 'Task updated successfully', data: updatedTask });
+
+    getIO().to(`user:${req.user!.prismaId}`).emit('task:statusUpdated', {
+      taskId,
+      status: updatedTask.status,
+    });
   } catch (error) {
     if (error instanceof TaskServiceError) {
       sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
       return;
     }
     logger.error({ err: error, requestId: req.requestId }, 'updateTask failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const cancelRecurrence = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { keepChildren } = res.locals.validated.body as { keepChildren: boolean };
+    const result = await taskService.cancelRecurrence(
+      req.user!.prismaId,
+      req.params['id'] as string,
+      keepChildren
+    );
+    const copies = result.deletedCount;
+    const message = keepChildren
+      ? 'Recurring task cancelled. Existing copies kept.'
+      : `Recurring task cancelled. ${copies} unstarted ${copies === 1 ? 'copy' : 'copies'} deleted.`;
+    res.status(200).json({ success: true, message, data: result });
+  } catch (error) {
+    if (error instanceof TaskServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'cancelRecurrence failed');
     sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };

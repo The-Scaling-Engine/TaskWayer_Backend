@@ -351,6 +351,7 @@ export interface ITaskRepository {
   createMany(data: CreateTaskData[]): Promise<void>;
   update(id: string, data: UpdateTaskData): Promise<Task>;
   delete(id: string): Promise<void>;
+  deleteManyByParentId(parentId: string): Promise<number>;
   count(profileId: string): Promise<number>;
   statsByStatus(profileId: string): Promise<TaskStatsResult>;
 }

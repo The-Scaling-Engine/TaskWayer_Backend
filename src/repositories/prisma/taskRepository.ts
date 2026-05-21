@@ -247,6 +247,13 @@ export class PrismaTaskRepository implements ITaskRepository {
     await prisma.task.delete({ where: { id } });
   }
 
+  async deleteManyByParentId(parentId: string): Promise<number> {
+    const result = await prisma.task.deleteMany({
+      where: { recurrenceParentId: parentId, status: 'todo' },
+    });
+    return result.count;
+  }
+
   // ─────────────────────────────────────────────────
   // AGGREGATION
   // ─────────────────────────────────────────────────

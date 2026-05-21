@@ -364,6 +364,35 @@ export class TaskService {
     return this.taskRepo.statsByStatus(profile.id);
   }
 
+  // ─── Cancel Recurrence ────────────────────────────────────────────────────
+
+  async cancelRecurrence(
+    profileId: string,
+    taskId: string,
+    keepChildren: boolean
+  ): Promise<{ deletedCount: number }> {
+    const task = await this.taskRepo.findByIdOrMongoId(taskId);
+    if (!task) throw new TaskServiceError('Task not found', 404);
+    if (!task.isRecurring) throw new TaskServiceError('Task is not recurring', 400);
+    if (task.recurrenceParentId) throw new TaskServiceError('Use the parent task to cancel recurrence', 400);
+
+    const profile = await this.resolveProfile(profileId);
+    await this.resolveTaskPermission(task, profileId, profile, 'write');
+
+    let deletedCount = 0;
+    if (!keepChildren) {
+      deletedCount = await this.taskRepo.deleteManyByParentId(task.id);
+    }
+
+    await this.taskRepo.update(task.id, {
+      isRecurring: false,
+      recurrenceType: null,
+      recurrenceEndDate: null,
+    });
+
+    return { deletedCount };
+  }
+
   // ─── Delete ───────────────────────────────────────────────────────────────
 
   async deleteTask(profileId: string, taskId: string): Promise<void> {

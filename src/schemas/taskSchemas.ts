@@ -38,6 +38,10 @@ export const updateTaskSchema = z.object({
 });
 export type UpdateTaskBody = z.infer<typeof updateTaskSchema>;
 
+export const cancelRecurrenceSchema = z.object({
+  keepChildren: z.boolean(),
+});
+
 export const getTasksQuerySchema = z.object({
   page:         z.coerce.number().int().positive().max(1000).default(1),
   limit:        z.coerce.number().int().positive().max(100).default(10),
