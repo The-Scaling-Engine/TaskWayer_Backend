@@ -15,6 +15,7 @@ import './routes/notificationRoutes';
 import './routes/analyticsRoutes';
 import './routes/adminAnalyticsRoutes';
 import './routes/timeTrackingRoutes';
+import './routes/todoRoutes';
 
 const docConfig: OpenAPIObjectConfig = {
   openapi: '3.0.0',
@@ -45,6 +46,7 @@ const docConfig: OpenAPIObjectConfig = {
     { name: 'Department Members', description: 'Department membership and ownership management' },
     { name: 'Invitations',       description: 'Department invitations (send, accept, reject)' },
     { name: 'Admin Analytics',   description: 'System-wide analytics — Admin role required' },
+    { name: 'Todos',             description: 'Quick todo list items for the authenticated user' },
   ],
 };
 

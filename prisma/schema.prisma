@@ -89,6 +89,7 @@ model Profile {
   username     String?    @unique
   jobTitle     String?    @db.VarChar(200)
   tasks                Task[]
+  todos                Todo[]
   memberships          DepartmentMember[]    @relation("MemberProfile")
   invitedMemberships   DepartmentMember[]    @relation("InviterProfile")
   sentInvitations      DepartmentInvitation[] @relation("InviterInvitation")
@@ -260,6 +261,22 @@ model Notification {
   @@index([createdAt])
   @@index([userId, readAt, createdAt])
   @@map("notifications")
+}
+
+model Todo {
+  id        String   @id @default(uuid())
+  profileId String
+  text      String   @db.VarChar(500)
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([profileId, done])
+  @@index([createdAt])
+  @@map("todos")
 }
 
 model TimeTrackingSession {

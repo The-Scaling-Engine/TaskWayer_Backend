@@ -23,6 +23,7 @@ import notificationRoutes from './routes/notificationRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import adminAnalyticsRoutes from './routes/adminAnalyticsRoutes';
 import timeTrackingRoutes from './routes/timeTrackingRoutes';
+import todoRoutes from './routes/todoRoutes';
 import { protect, AuthRequest } from './middleware/authMiddleware';
 import { initSocket, getIO } from './socket/index';
 import prisma from './config/prisma';
@@ -111,6 +112,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
 app.use('/api/time-tracking', timeTrackingRoutes);
+app.use('/api/todos', todoRoutes);
 
 // ─── 9. Swagger UI (development only) ────────────────────────
 if (env.NODE_ENV === 'development') {

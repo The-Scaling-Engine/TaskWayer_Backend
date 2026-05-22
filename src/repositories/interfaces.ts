@@ -1,4 +1,4 @@
-import { Profile, Department, Task, DepartmentMember, DepartmentInvitation, DepartmentMemberRole, MembershipStatus, Comment, Notification, NotificationType, RecurrenceType } from '@prisma/client';
+import { Profile, Department, Task, Todo, DepartmentMember, DepartmentInvitation, DepartmentMemberRole, MembershipStatus, Comment, Notification, NotificationType, RecurrenceType } from '@prisma/client';
 
 // ─── Profile DTOs ─────────────────────────────────────────────
 
@@ -294,6 +294,26 @@ export interface MemberTaskFilterOptions {
   status?: 'todo' | 'doing' | 'done';
   priority?: 'low' | 'medium' | 'high';
   deadlineBefore?: string;
+}
+
+// ─── Todo DTOs ────────────────────────────────────────────────
+
+export interface CreateTodoData {
+  profileId: string;
+  text: string;
+}
+
+export interface UpdateTodoData {
+  text?: string | undefined;
+  done?: boolean | undefined;
+}
+
+export interface ITodoRepository {
+  findById(id: string): Promise<Todo | null>;
+  findByProfile(profileId: string): Promise<Todo[]>;
+  create(data: CreateTodoData): Promise<Todo>;
+  update(id: string, data: UpdateTodoData): Promise<Todo>;
+  delete(id: string): Promise<void>;
 }
 
 // ─── Repository Interfaces ────────────────────────────────────
