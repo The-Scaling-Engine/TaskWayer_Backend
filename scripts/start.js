@@ -16,7 +16,6 @@ const MIGRATIONS = [
   '20260519100000_rename_deadline_notification_types',
   '20260520085406_add_scheduled_at',
   '20260520200727_add_pending_user_status',
-  '20260522095646_add_todo_model',
 ];
 
 const isWin = process.platform === 'win32';
@@ -25,7 +24,7 @@ function runCommand(args) {
   const result = spawnSync('npx', args, {
     stdio: ['inherit', 'pipe', 'pipe'],
     encoding: 'utf8',
-    shell: isWin,
+    shell: true,
   });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
