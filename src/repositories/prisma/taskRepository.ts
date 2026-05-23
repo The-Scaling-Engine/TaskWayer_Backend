@@ -157,7 +157,10 @@ export class PrismaTaskRepository implements ITaskRepository {
     limit: number
   ): Promise<PaginatedTasksResult> {
     const skip = buildSkip(page, limit);
-    const where: Prisma.TaskWhereInput = { profileId, departmentId };
+    const where: Prisma.TaskWhereInput = {
+      departmentId,
+      OR: [{ profileId }, { assignedTo: profileId }],
+    };
 
     if (filter.status !== undefined) {
       where.status = filter.status;

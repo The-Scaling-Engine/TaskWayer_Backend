@@ -131,6 +131,14 @@ export const createComment = async (
     task.title, content
   ).catch(err => logger.error({ err, context: 'notifyCommentAdded', taskId, commentId: comment.id }, 'Fire-and-forget failed'));
 
+  // For assigned tasks: also notify the assignee if they're not the commenter and not the same as profileId
+  if (task.isAssigned && task.assignedTo && task.assignedTo !== profileId && task.assignedTo !== task.profileId) {
+    void notificationService.notifyCommentAdded(
+      task.assignedTo, profileId, profile.name, taskId, comment.id, task.departmentId,
+      task.title, content
+    ).catch(err => logger.error({ err, context: 'notifyCommentAdded:assignee', taskId, commentId: comment.id }, 'Fire-and-forget failed'));
+  }
+
   // Parse mentions (fire-and-forget)
   void notificationService.processMentions(
     content, taskId, comment.id, task.departmentId, profileId, profile.name, task.title

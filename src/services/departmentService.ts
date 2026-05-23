@@ -174,8 +174,8 @@ export const assignTask = async (
   void notificationService.createNotification({
     userId:     targetUserId,
     type:       'TASK_ASSIGNED',
-    title:      'Bạn được giao một task mới',
-    message:    `${actorName} tại phòng ban "${dept.name}" đã assigned cho bạn task mới: ${task.title}`,
+    title:      'New task assigned to you',
+    message:    `${actorName} in "${dept.name}" assigned you a new task: ${task.title}`,
     payload:    { taskId: task.id, departmentId: dept.id, actorId: requesterProfileId },
     entityType: 'task',
     entityId:   task.id,
