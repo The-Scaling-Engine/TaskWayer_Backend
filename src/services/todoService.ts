@@ -18,14 +18,14 @@ export const getTodos = async (profileId: string): Promise<Todo[]> => {
   return todoRepo.findByProfile(profileId);
 };
 
-export const createTodo = async (profileId: string, text: string): Promise<Todo> => {
-  return todoRepo.create({ profileId, text });
+export const createTodo = async (profileId: string, text: string, tags: string[] = []): Promise<Todo> => {
+  return todoRepo.create({ profileId, text, tags });
 };
 
 export const updateTodo = async (
   id: string,
   profileId: string,
-  data: { text?: string | undefined; done?: boolean | undefined }
+  data: { text?: string | undefined; done?: boolean | undefined; tags?: string[] | undefined }
 ): Promise<Todo> => {
   const todo = await todoRepo.findById(id);
   if (!todo) throw new TodoServiceError('Todo not found', 404);

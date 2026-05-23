@@ -301,11 +301,14 @@ export interface MemberTaskFilterOptions {
 export interface CreateTodoData {
   profileId: string;
   text: string;
+  tags?: string[];
+  order?: number;
 }
 
 export interface UpdateTodoData {
   text?: string | undefined;
   done?: boolean | undefined;
+  tags?: string[] | undefined;
 }
 
 export interface ITodoRepository {

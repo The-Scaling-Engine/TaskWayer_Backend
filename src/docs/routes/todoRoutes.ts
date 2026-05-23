@@ -8,6 +8,8 @@ const TodoSchema = z.object({
   profileId: z.string().uuid(),
   text:      z.string().openapi({ example: 'Send invoice to finance team' }),
   done:      z.boolean().openapi({ example: false }),
+  tags:      z.array(z.string()).openapi({ example: ['marketing', 'finance'] }),
+  order:     z.number().int().openapi({ example: 0 }),
   createdAt: z.string().openapi({ example: '2026-05-22T08:00:00.000Z' }),
   updatedAt: z.string().openapi({ example: '2026-05-22T08:00:00.000Z' }),
 }).openapi('Todo');

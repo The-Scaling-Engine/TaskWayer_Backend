@@ -19,6 +19,8 @@ export class PrismaTodoRepository implements ITodoRepository {
       data: {
         profileId: data.profileId,
         text: data.text,
+        tags: data.tags ?? [],
+        order: data.order ?? 0,
       },
     });
   }
@@ -27,8 +29,9 @@ export class PrismaTodoRepository implements ITodoRepository {
     return prisma.todo.update({
       where: { id },
       data: {
-        ...(data.text  !== undefined && { text: data.text }),
-        ...(data.done  !== undefined && { done: data.done }),
+        ...(data.text !== undefined && { text: data.text }),
+        ...(data.done !== undefined && { done: data.done }),
+        ...(data.tags !== undefined && { tags: data.tags }),
       },
     });
   }

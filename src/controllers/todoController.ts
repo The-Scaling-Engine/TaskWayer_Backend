@@ -19,8 +19,8 @@ export const getTodos = async (req: AuthRequest, res: Response): Promise<void> =
 // POST /api/todos
 export const createTodo = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { text } = res.locals.validated.body as CreateTodoInput;
-    const todo = await todoService.createTodo(req.user!.prismaId, text);
+    const { text, tags } = res.locals.validated.body as CreateTodoInput;
+    const todo = await todoService.createTodo(req.user!.prismaId, text, tags);
     res.status(201).json({ success: true, message: 'Todo created', data: todo });
   } catch (error) {
     logger.error({ err: error, requestId: req.requestId }, 'createTodo failed');
