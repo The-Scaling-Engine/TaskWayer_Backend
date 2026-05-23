@@ -50,7 +50,7 @@ export async function getActiveSessionsByProfileIds(
 
 export async function checkTaskOwnership(profileId: string, taskId: string): Promise<boolean> {
   const task = await prisma.task.findFirst({
-    where:  { id: taskId, profileId },
+    where:  { id: taskId, OR: [{ profileId }, { assignedTo: profileId }] },
     select: { id: true },
   });
   return task !== null;
