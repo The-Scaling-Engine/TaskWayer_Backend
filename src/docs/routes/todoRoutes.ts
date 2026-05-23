@@ -1,6 +1,6 @@
 import { registry, z } from '../registry';
 import { bearerSecurity, errorResponses } from '../components';
-import { createTodoSchema, updateTodoSchema } from '../../schemas/todoSchemas';
+import { createTodoSchema, updateTodoSchema, reorderTodosSchema } from '../../schemas/todoSchemas';
 import { uuidParamSchema } from '../../schemas/commonSchemas';
 
 const TodoSchema = z.object({
@@ -97,6 +97,33 @@ registry.registerPath({
     401: errorResponses[401],
     403: errorResponses[403],
     404: errorResponses[404],
+    500: errorResponses[500],
+  },
+});
+
+// PATCH /api/todos/reorder
+registry.registerPath({
+  method: 'patch',
+  path: '/api/todos/reorder',
+  tags: ['Todos'],
+  summary: 'Reorder todos',
+  description: 'Update the order of multiple todos at once. Only affects todos owned by the authenticated user.',
+  security: bearerSecurity,
+  request: { body: { content: { 'application/json': { schema: reorderTodosSchema } } } },
+  responses: {
+    200: {
+      description: 'Todos reordered',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.literal(true),
+            message: z.string().openapi({ example: 'Todos reordered' }),
+          }),
+        },
+      },
+    },
+    400: errorResponses[400],
+    401: errorResponses[401],
     500: errorResponses[500],
   },
 });

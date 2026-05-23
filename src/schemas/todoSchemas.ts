@@ -16,3 +16,13 @@ export const updateTodoSchema = z
     message: 'At least one field (text, done, or tags) must be provided',
   });
 export type UpdateTodoInput = z.infer<typeof updateTodoSchema>;
+
+export const reorderTodosSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().uuid(),
+      order: z.number().int().min(0),
+    })
+  ).min(1),
+});
+export type ReorderTodosInput = z.infer<typeof reorderTodosSchema>;

@@ -3,7 +3,7 @@ import { AuthRequest } from '../middleware/authMiddleware';
 import * as todoService from '../services/todoService';
 import { sendError, codeFor } from '../utils/apiResponse';
 import logger from '../config/logger';
-import type { CreateTodoInput, UpdateTodoInput } from '../schemas/todoSchemas';
+import type { CreateTodoInput, UpdateTodoInput, ReorderTodosInput } from '../schemas/todoSchemas';
 
 // GET /api/todos
 export const getTodos = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -41,6 +41,18 @@ export const updateTodo = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
     logger.error({ err: error, requestId: req.requestId }, 'updateTodo failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+// PATCH /api/todos/reorder
+export const reorderTodos = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { items } = res.locals.validated.body as ReorderTodosInput;
+    await todoService.reorderTodos(req.user!.prismaId, items);
+    res.status(200).json({ success: true, message: 'Todos reordered' });
+  } catch (error) {
+    logger.error({ err: error, requestId: req.requestId }, 'reorderTodos failed');
     sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };

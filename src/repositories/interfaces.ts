@@ -316,6 +316,7 @@ export interface ITodoRepository {
   findByProfile(profileId: string): Promise<Todo[]>;
   create(data: CreateTodoData): Promise<Todo>;
   update(id: string, data: UpdateTodoData): Promise<Todo>;
+  reorder(items: { id: string; order: number }[], profileId: string): Promise<void>;
   delete(id: string): Promise<void>;
 }
 

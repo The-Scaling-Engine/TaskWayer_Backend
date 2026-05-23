@@ -34,6 +34,13 @@ export const updateTodo = async (
   return todoRepo.update(id, data);
 };
 
+export const reorderTodos = async (
+  profileId: string,
+  items: { id: string; order: number }[]
+): Promise<void> => {
+  await todoRepo.reorder(items, profileId);
+};
+
 export const deleteTodo = async (id: string, profileId: string): Promise<void> => {
   const todo = await todoRepo.findById(id);
   if (!todo) throw new TodoServiceError('Todo not found', 404);

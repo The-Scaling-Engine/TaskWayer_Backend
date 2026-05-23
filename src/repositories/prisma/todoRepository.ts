@@ -10,7 +10,7 @@ export class PrismaTodoRepository implements ITodoRepository {
   async findByProfile(profileId: string): Promise<Todo[]> {
     return prisma.todo.findMany({
       where: { profileId },
-      orderBy: [{ done: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ done: 'asc' }, { order: 'asc' }, { createdAt: 'desc' }],
     });
   }
 
@@ -34,6 +34,14 @@ export class PrismaTodoRepository implements ITodoRepository {
         ...(data.tags !== undefined && { tags: data.tags }),
       },
     });
+  }
+
+  async reorder(items: { id: string; order: number }[], profileId: string): Promise<void> {
+    await prisma.$transaction(
+      items.map(({ id, order }) =>
+        prisma.todo.updateMany({ where: { id, profileId }, data: { order } })
+      )
+    );
   }
 
   async delete(id: string): Promise<void> {
