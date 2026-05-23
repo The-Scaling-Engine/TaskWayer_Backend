@@ -7,6 +7,8 @@ import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogR
 import { MemberWithProfile, PaginatedMembersResult } from '../repositories/interfaces';
 import { ServiceError } from './departmentService';
 import { mapPrismaConflict } from '../utils/prismaError';
+import * as notificationService from './notificationService';
+import logger from '../config/logger';
 
 const membershipRepo = new PrismaMembershipRepository();
 const departmentRepo = new PrismaDepartmentRepository();
@@ -104,6 +106,18 @@ export const addMember = async (
     action: 'member.added',
     metadata: { targetUserId, role },
   });
+
+  const actorName = actorProfile?.name ?? actorProfile?.email ?? 'An admin';
+  void notificationService.createNotification({
+    userId:     targetUserId,
+    type:       'DEPT_MEMBER_JOINED',
+    title:      'You have been added to a department',
+    message:    `${actorName} added you to "${dept.name}" as ${role}.`,
+    payload:    { departmentId, actorId, role },
+    entityType: 'department',
+    entityId:   departmentId,
+  }).catch(err => logger.error({ err, context: 'member.added notification' }, 'Fire-and-forget failed'));
+
   return membership;
 };
 

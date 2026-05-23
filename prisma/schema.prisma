@@ -49,6 +49,7 @@ enum NotificationType {
   DEADLINE_12_HOURS
   DEADLINE_4_HOURS
   DEADLINE_1_HOUR
+  DEPT_MEMBER_JOINED
 }
 
 // ─── Recurrence Enum ─────────────────────────────────────────

@@ -10,6 +10,8 @@ import { InvitationWithInviter, PaginatedInvitationsResult } from '../repositori
 import { ServiceError } from './departmentService';
 import { mapPrismaConflict } from '../utils/prismaError';
 import sendEmail from '../utils/email';
+import * as notificationService from './notificationService';
+import logger from '../config/logger';
 
 const EXPIRY_DAYS = 7;
 
@@ -202,6 +204,20 @@ export const acceptInvitation = async (
     action: 'invitation.accepted',
     metadata: { email: invitation.email, role: invitation.role },
   });
+
+  const dept = await departmentRepo.findById(invitation.departmentId);
+  if (dept) {
+    void notificationService.createNotification({
+      userId:     userId,
+      type:       'DEPT_MEMBER_JOINED',
+      title:      'You have joined a department',
+      message:    `You have successfully joined "${dept.name}" as ${invitation.role}.`,
+      payload:    { departmentId: invitation.departmentId, role: invitation.role },
+      entityType: 'department',
+      entityId:   invitation.departmentId,
+    }).catch(err => logger.error({ err, context: 'invitation.accepted notification' }, 'Fire-and-forget failed'));
+  }
+
   return membership;
 };
 
