@@ -11,6 +11,7 @@ import {
   transferOwnershipSchema,
   getWorkloadQuerySchema,
   getMemberTasksQuerySchema,
+  assignTaskToMemberSchema,
 } from '../../schemas/departmentSchemas';
 import { sendInvitationSchema } from '../../schemas/invitationSchemas';
 
@@ -530,6 +531,43 @@ registry.registerPath({
     401: errorResponses[401],
     403: errorResponses[403],
     404: errorResponses[404],
+    500: errorResponses[500],
+  },
+});
+
+// POST /api/departments/:departmentId/members/:userId/assign-task
+registry.registerPath({
+  method: 'post',
+  path: '/api/departments/{departmentId}/members/{userId}/assign-task',
+  tags: ['Department Members'],
+  summary: 'Assign a task to a member',
+  description: 'Creates a new task and assigns it to a specific member. OWNER can assign to ADMIN/MEMBER; ADMIN can only assign to MEMBER. Self-assignment is not allowed.',
+  security: bearerSecurity,
+  request: {
+    params: memberUserParams,
+    body: {
+      required: true,
+      content: { 'application/json': { schema: assignTaskToMemberSchema } },
+    },
+  },
+  responses: {
+    201: {
+      description: 'Task assigned successfully',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.literal(true),
+            message: z.string().openapi({ example: 'Task assigned successfully' }),
+            data: z.object({}).passthrough(),
+          }),
+        },
+      },
+    },
+    400: errorResponses[400],
+    401: errorResponses[401],
+    403: errorResponses[403],
+    404: errorResponses[404],
+    429: errorResponses[429],
     500: errorResponses[500],
   },
 });

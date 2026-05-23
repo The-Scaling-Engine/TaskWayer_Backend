@@ -104,6 +104,22 @@ export class PrismaTaskRepository implements ITaskRepository {
       additionalFilters.scheduledAt = scheduledFilter;
     }
 
+    if (filter.personal) {
+      additionalFilters.departmentId = null;
+    }
+
+    if (filter.departmentId) {
+      additionalFilters.departmentId = filter.departmentId;
+    }
+
+    if (filter.assignedByMe) {
+      additionalFilters.assignedBy = profileId;
+    }
+
+    if (filter.assignedToMe) {
+      additionalFilters.assignedTo = profileId;
+    }
+
     const where: Prisma.TaskWhereInput = {
       AND: [baseScope, additionalFilters],
     };

@@ -31,6 +31,7 @@ export interface CreateTaskInput {
   deadline?: string | null;
   scheduledAt?: string | null;
   departmentId?: string;
+  assignedTo?: string;
   isRecurring?: boolean;
   recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
   recurrenceEndDate?: string | null;
@@ -64,6 +65,10 @@ export interface GetTasksInput {
   createdTo?:      string;
   scheduledFrom?:  string;
   scheduledTo?:    string;
+  personal?:       boolean;
+  assignedByMe?:   boolean;
+  assignedToMe?:   boolean;
+  departmentId?:   string;
 }
 
 // ─── Error ────────────────────────────────────────────────────────────────────
@@ -170,6 +175,7 @@ export class TaskService {
       scheduledAt:       input.scheduledAt ? new Date(input.scheduledAt) : new Date(),
       ...(input.deadline        != null && { deadline:        new Date(input.deadline) }),
       ...(input.departmentId    != null && { departmentId:    input.departmentId }),
+      ...(input.assignedTo      != null && { assignedTo: input.assignedTo, assignedBy: profile.id, isAssigned: true }),
       ...(completedNow !== undefined    && { completedAt:     completedNow }),
       isRecurring:       input.isRecurring ?? false,
       ...(input.recurrenceType    != null && { recurrenceType:    input.recurrenceType as RecurrenceType }),
@@ -257,6 +263,10 @@ export class TaskService {
     if (query.createdTo)      filter.createdTo      = query.createdTo;
     if (query.scheduledFrom)  filter.scheduledFrom  = query.scheduledFrom;
     if (query.scheduledTo)    filter.scheduledTo    = query.scheduledTo;
+    if (query.personal)       filter.personal       = query.personal;
+    if (query.assignedByMe)   filter.assignedByMe   = query.assignedByMe;
+    if (query.assignedToMe)   filter.assignedToMe   = query.assignedToMe;
+    if (query.departmentId)   filter.departmentId   = query.departmentId;
 
     const sort: TaskSortOptions = {};
     if (query.sortBy) sort.sortBy = query.sortBy;
@@ -317,6 +327,11 @@ export class TaskService {
     }
 
     const profile = await this.resolveProfile(profileId);
+
+    if (task.isAssigned && task.assignedTo === profile.id) {
+      throw new TaskServiceError('Assigned task is read-only. Contact the manager to make changes.', 403);
+    }
+
     await this.resolveTaskPermission(task, profileId, profile, 'write');
 
     const data: UpdateTaskData = {};
@@ -402,6 +417,11 @@ export class TaskService {
     }
 
     const profile = await this.resolveProfile(profileId);
+
+    if (task.isAssigned && task.assignedTo === profile.id) {
+      throw new TaskServiceError('Assigned task is read-only. Contact the manager to make changes.', 403);
+    }
+
     await this.resolveTaskPermission(task, profileId, profile, 'delete');
 
     await this.taskRepo.delete(task.id);

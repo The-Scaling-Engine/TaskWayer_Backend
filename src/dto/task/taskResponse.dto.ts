@@ -21,6 +21,9 @@ export interface TaskResponseDTO {
   scheduledAt: Date | null;
   completedAt: Date | null;
   departmentId: string | null;
+  isAssigned: boolean;
+  assignedTo: string | null;
+  assignedBy: string | null;
   userId: string;
   isRecurring: boolean;
   recurrenceType: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;

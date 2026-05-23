@@ -13,6 +13,7 @@ import {
   removeDepartmentMember,
   changeMemberRole,
   transferOwnership,
+  assignTaskToMember,
 } from '../controllers/departmentController';
 import {
   sendInvitation,
@@ -32,6 +33,7 @@ import {
   getInvitationsQuerySchema,
   getWorkloadQuerySchema,
   getMemberTasksQuerySchema,
+  assignTaskToMemberSchema,
 } from '../schemas/departmentSchemas';
 import { sendInvitationSchema } from '../schemas/invitationSchemas';
 
@@ -72,6 +74,9 @@ router.get('/:departmentId/workload', requireDepartmentAdmin, validateRequest({ 
 
 // GET /api/departments/:departmentId/members/:userId/tasks
 router.get('/:departmentId/members/:userId/tasks', requireDepartmentAdmin, validateRequest({ query: getMemberTasksQuerySchema }), getMemberTasks);
+
+// POST /api/departments/:departmentId/members/:userId/assign-task
+router.post('/:departmentId/members/:userId/assign-task', departmentWriteLimiter, requireDepartmentAdmin, validateRequest({ body: assignTaskToMemberSchema }), assignTaskToMember);
 
 // GET /api/departments/:departmentId/members/:userId/time-tracking/active
 router.get('/:departmentId/members/:userId/time-tracking/active', requireDepartmentAdmin, getMemberActiveSession);

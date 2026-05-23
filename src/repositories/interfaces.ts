@@ -218,6 +218,9 @@ export interface CreateTaskData {
   recurrenceType?: RecurrenceType;
   recurrenceEndDate?: Date | null;
   recurrenceParentId?: string;
+  isAssigned?: boolean;
+  assignedTo?: string;
+  assignedBy?: string;
 }
 
 export interface UpdateTaskData {
@@ -246,6 +249,10 @@ export interface TaskFilterOptions {
   createdTo?:      string;
   scheduledFrom?:  string;
   scheduledTo?:    string;
+  personal?:       boolean;
+  assignedByMe?:   boolean;
+  assignedToMe?:   boolean;
+  departmentId?:   string;
 }
 
 export interface TaskSortOptions {

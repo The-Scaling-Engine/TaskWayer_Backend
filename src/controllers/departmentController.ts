@@ -251,3 +251,30 @@ export const removeUserFromDepartment = async (req: AuthRequest, res: Response):
     sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };
+
+// ─── Assign task to member ────────────────────────────────────
+
+export const assignTaskToMember = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const departmentId = req.params['departmentId'] as string;
+    const targetUserId = req.params['userId'] as string;
+    const { title, description, priority, deadline, tags } = res.locals.validated.body as import('../services/departmentService').AssignTaskInput;
+
+    const task = await departmentService.assignTask(
+      req.user!.prismaId,
+      departmentId,
+      targetUserId,
+      { title, ...(description !== undefined && { description }), ...(priority !== undefined && { priority }), ...(deadline !== undefined && { deadline }), ...(tags !== undefined && { tags }) },
+      req.user!.role
+    );
+
+    res.status(201).json({ success: true, message: 'Task assigned successfully', data: task });
+  } catch (error) {
+    if (error instanceof departmentService.ServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'assignTaskToMember failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};

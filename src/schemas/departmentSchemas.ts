@@ -78,3 +78,12 @@ export const getMemberTasksQuerySchema = z.object({
   limit:         z.coerce.number().int().positive().max(50).default(20),
 });
 export type GetMemberTasksQuery = z.infer<typeof getMemberTasksQuerySchema>;
+
+export const assignTaskToMemberSchema = z.object({
+  title:       z.string().trim().min(1, 'Title is required').max(255),
+  description: z.string().trim().max(5000).optional(),
+  priority:    z.enum(['low', 'medium', 'high']).optional(),
+  deadline:    z.string().datetime({ offset: true }).optional(),
+  tags:        z.array(z.string().trim()).optional(),
+});
+export type AssignTaskToMemberInput = z.infer<typeof assignTaskToMemberSchema>;

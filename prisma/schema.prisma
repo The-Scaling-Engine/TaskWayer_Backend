@@ -195,6 +195,9 @@ model Task {
   comments            Comment[]
   timeSessions        TimeTrackingSession[]
   completedAt         DateTime?
+  isAssigned          Boolean         @default(false)
+  assignedTo          String?
+  assignedBy          String?
   isRecurring         Boolean         @default(false)
   recurrenceType      RecurrenceType?
   recurrenceEndDate   DateTime?

@@ -1,6 +1,9 @@
 import { Department } from '@prisma/client';
 import { PrismaDepartmentRepository } from '../repositories/prisma/departmentRepository';
 import { PrismaMembershipRepository } from '../repositories/prisma/membershipRepository';
+import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
+import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
+import * as notificationService from './notificationService';
 import {
   CreateDepartmentData,
   UpdateDepartmentData,
@@ -10,6 +13,8 @@ import {
 
 const departmentRepo = new PrismaDepartmentRepository();
 const membershipRepo = new PrismaMembershipRepository();
+const taskRepo = new PrismaTaskRepository();
+const profileRepo = new PrismaProfileRepository();
 
 // ─── Department CRUD ──────────────────────────────────────────
 
@@ -90,6 +95,93 @@ export const deleteDepartment = async (
 
   // With force=true: delete department — DepartmentMember cascade handles cleanup
   return departmentRepo.delete(id);
+};
+
+// ─── Assign Task ─────────────────────────────────────────────
+
+export interface AssignTaskInput {
+  title: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  deadline?: string;
+  tags?: string[];
+}
+
+export const assignTask = async (
+  requesterProfileId: string,
+  departmentId: string,
+  targetUserId: string,
+  input: AssignTaskInput,
+  callerSystemRole?: string
+): Promise<import('@prisma/client').Task> => {
+  const dept = await departmentRepo.findById(departmentId);
+  if (!dept) throw new ServiceError('Department not found', 404);
+
+  let requesterRole: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+
+  if (callerSystemRole === 'ADMIN') {
+    // System-level admins bypass dept membership — treat as OWNER
+    requesterRole = 'OWNER';
+  } else {
+    const requesterMembership = await membershipRepo.findByUserAndDepartment(requesterProfileId, departmentId);
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE') {
+      throw new ServiceError('You are not an active member of this department', 403);
+    }
+    requesterRole = requesterMembership.role;
+    if (requesterRole !== 'OWNER' && requesterRole !== 'ADMIN') {
+      throw new ServiceError('Only OWNER or ADMIN can assign tasks', 403);
+    }
+  }
+
+  const targetMembership = await membershipRepo.findByUserAndDepartment(targetUserId, departmentId);
+  if (!targetMembership || targetMembership.status !== 'ACTIVE') {
+    throw new ServiceError('Target user is not an active member of this department', 404);
+  }
+
+  const targetRole = targetMembership.role;
+
+  if (targetUserId === requesterProfileId) {
+    throw new ServiceError('Cannot assign task to yourself', 403);
+  }
+
+  // Cannot assign to OWNER (protect dept owners from receiving assigned tasks)
+  if (targetRole === 'OWNER') {
+    throw new ServiceError('Cannot assign tasks to a department OWNER', 403);
+  }
+
+  // ADMIN can only assign to MEMBER (not to other ADMINs)
+  if (requesterRole === 'ADMIN' && targetRole === 'ADMIN') {
+    throw new ServiceError('ADMIN can only assign tasks to MEMBER role', 403);
+  }
+
+  const task = await taskRepo.create({
+    title:       input.title.trim(),
+    description: input.description ?? '',
+    priority:    input.priority ?? 'medium',
+    tags:        input.tags ?? [],
+    profileId:   requesterProfileId,
+    departmentId,
+    isAssigned:  true,
+    assignedTo:  targetUserId,
+    assignedBy:  requesterProfileId,
+    scheduledAt: new Date(),
+    ...(input.deadline != null && { deadline: new Date(input.deadline) }),
+  });
+
+  const requesterProfile = await profileRepo.findById(requesterProfileId);
+  const actorName = requesterProfile?.name ?? requesterProfile?.email ?? 'Your manager';
+
+  void notificationService.createNotification({
+    userId:     targetUserId,
+    type:       'TASK_ASSIGNED',
+    title:      'Bạn được giao một task mới',
+    message:    `${actorName} tại phòng ban "${dept.name}" đã assigned cho bạn task mới: ${task.title}`,
+    payload:    { taskId: task.id, departmentId: dept.id, actorId: requesterProfileId },
+    entityType: 'task',
+    entityId:   task.id,
+  });
+
+  return task;
 };
 
 // ─── Service Error ────────────────────────────────────────────
