@@ -38,7 +38,7 @@ export async function resolveTaskPermission(
       throw new TaskPermissionError('VIEWER cannot modify tasks', 403);
     }
 
-    if (level !== 'read' && role === 'MEMBER' && task.profileId !== profileId) {
+    if (level !== 'read' && role === 'MEMBER' && task.profileId !== profileId && task.assignedTo !== profileId) {
       throw new TaskPermissionError('MEMBER can only modify their own tasks', 403);
     }
 

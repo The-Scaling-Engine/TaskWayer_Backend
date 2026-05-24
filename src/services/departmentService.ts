@@ -104,7 +104,11 @@ export interface AssignTaskInput {
   description?: string;
   priority?: 'low' | 'medium' | 'high';
   deadline?: string;
+  scheduledAt?: string;
   tags?: string[];
+  isRecurring?: boolean;
+  recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
+  recurrenceEndDate?: string | null;
 }
 
 export const assignTask = async (
@@ -164,8 +168,11 @@ export const assignTask = async (
     isAssigned:  true,
     assignedTo:  targetUserId,
     assignedBy:  requesterProfileId,
-    scheduledAt: new Date(),
-    ...(input.deadline != null && { deadline: new Date(input.deadline) }),
+    scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : new Date(),
+    ...(input.deadline           != null && { deadline:           new Date(input.deadline) }),
+    isRecurring:                           input.isRecurring ?? false,
+    ...(input.recurrenceType     != null && { recurrenceType:     input.recurrenceType as import('@prisma/client').RecurrenceType }),
+    ...(input.recurrenceEndDate  != null && { recurrenceEndDate:  new Date(input.recurrenceEndDate) }),
   });
 
   const requesterProfile = await profileRepo.findById(requesterProfileId);

@@ -80,10 +80,14 @@ export const getMemberTasksQuerySchema = z.object({
 export type GetMemberTasksQuery = z.infer<typeof getMemberTasksQuerySchema>;
 
 export const assignTaskToMemberSchema = z.object({
-  title:       z.string().trim().min(1, 'Title is required').max(255),
-  description: z.string().trim().max(5000).optional(),
-  priority:    z.enum(['low', 'medium', 'high']).optional(),
-  deadline:    z.string().datetime({ offset: true }).optional(),
-  tags:        z.array(z.string().trim()).optional(),
+  title:              z.string().trim().min(1, 'Title is required').max(255),
+  description:        z.string().trim().max(5000).optional(),
+  priority:           z.enum(['low', 'medium', 'high']).optional(),
+  deadline:           z.string().datetime({ offset: true }).optional(),
+  scheduledAt:        z.string().datetime({ offset: true }).optional(),
+  tags:               z.array(z.string().trim()).optional(),
+  isRecurring:        z.boolean().optional(),
+  recurrenceType:     z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']).nullable().optional(),
+  recurrenceEndDate:  z.string().datetime({ offset: true }).nullable().optional(),
 });
 export type AssignTaskToMemberInput = z.infer<typeof assignTaskToMemberSchema>;

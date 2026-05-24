@@ -258,13 +258,23 @@ export const assignTaskToMember = async (req: AuthRequest, res: Response): Promi
   try {
     const departmentId = req.params['departmentId'] as string;
     const targetUserId = req.params['userId'] as string;
-    const { title, description, priority, deadline, tags } = res.locals.validated.body as import('../services/departmentService').AssignTaskInput;
+    const { title, description, priority, deadline, scheduledAt, tags, isRecurring, recurrenceType, recurrenceEndDate } = res.locals.validated.body as import('../services/departmentService').AssignTaskInput;
 
     const task = await departmentService.assignTask(
       req.user!.prismaId,
       departmentId,
       targetUserId,
-      { title, ...(description !== undefined && { description }), ...(priority !== undefined && { priority }), ...(deadline !== undefined && { deadline }), ...(tags !== undefined && { tags }) },
+      {
+        title,
+        ...(description       !== undefined && { description }),
+        ...(priority          !== undefined && { priority }),
+        ...(deadline          !== undefined && { deadline }),
+        ...(scheduledAt       !== undefined && { scheduledAt }),
+        ...(tags              !== undefined && { tags }),
+        ...(isRecurring       !== undefined && { isRecurring }),
+        ...(recurrenceType    !== undefined && { recurrenceType }),
+        ...(recurrenceEndDate !== undefined && { recurrenceEndDate }),
+      },
       req.user!.role
     );
 

@@ -329,7 +329,11 @@ export class TaskService {
     const profile = await this.resolveProfile(profileId);
 
     if (task.isAssigned && task.assignedTo === profile.id) {
-      throw new TaskServiceError('Assigned task is read-only. Contact the manager to make changes.', 403);
+      const nonStatusKeys = (Object.keys(input) as (keyof UpdateTaskInput)[])
+        .filter(k => k !== 'status' && input[k] !== undefined);
+      if (nonStatusKeys.length > 0) {
+        throw new TaskServiceError('Assigned task is read-only. Contact the manager to make changes.', 403);
+      }
     }
 
     await this.resolveTaskPermission(task, profileId, profile, 'write');
