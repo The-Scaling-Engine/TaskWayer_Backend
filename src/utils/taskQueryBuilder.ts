@@ -6,25 +6,27 @@ export const buildPersonalTaskFilter = (profileId: string): Prisma.TaskWhereInpu
 
 /**
  * Builds a scoped Prisma `where` clause for task queries.
- * - Global admin: sees all tasks (admin has no personal task space — intentional)
- * - Members: own tasks + all tasks in departments they belong to
+ * - Global admin: sees all tasks
+ * - Members: own tasks + dept tasks (active memberships) + project tasks (any project membership)
  * - No memberships: own tasks only
  */
 export const buildScopedTaskFilter = (
   profileId: string,
   departmentIds: string[],
+  projectIds: string[],
   isGlobalAdmin: boolean
 ): Prisma.TaskWhereInput => {
   if (isGlobalAdmin) return {};
 
+  const orClauses: Prisma.TaskWhereInput[] = [{ profileId }];
+
   if (departmentIds.length > 0) {
-    return {
-      OR: [
-        { profileId },
-        { departmentId: { in: departmentIds } },
-      ],
-    };
+    orClauses.push({ departmentId: { in: departmentIds } });
   }
 
-  return { profileId };
+  if (projectIds.length > 0) {
+    orClauses.push({ projectId: { in: projectIds } });
+  }
+
+  return { OR: orClauses };
 };

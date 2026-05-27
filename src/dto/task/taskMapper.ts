@@ -1,20 +1,13 @@
 import { Task as PrismaTask, RecurrenceType } from '@prisma/client';
 import { TaskResponseDTO } from './taskResponse.dto';
 
-/**
- * mapPrismaTaskToResponseDTO
- *
- * Maps a single Prisma Task record to the canonical TaskResponseDTO.
- *
- * CRITICAL COMPATIBILITY RULES:
- *  - `_id`    = task.id (Prisma UUID, aliased for frontend)
- *  - `userId` = task.mongoId if available (preserves original Mongo userId)
- *              OR task.profileId (Prisma profileId as fallback)
- *              This is essential: the frontend stores/compares userId values.
- *              If a task was migrated from Mongo, mongoId holds the original Mongo userId.
- *  - `__v`    = 0 (Mongoose versioning stub, always 0 for Prisma-sourced data)
- */
-export const mapPrismaTaskToResponseDTO = (task: PrismaTask & { profile?: { mongoId?: string | null } }): TaskResponseDTO => {
+type ViewerProfile = { mongoId?: string | null };
+type CreatorProfile = { name?: string | null; email?: string | null; avatar?: string | null } | null;
+
+export const mapPrismaTaskToResponseDTO = (
+  task: PrismaTask & { profile?: ViewerProfile },
+  creatorProfile?: CreatorProfile
+): TaskResponseDTO => {
   return {
     _id: task.id,
     title: task.title,
@@ -26,6 +19,7 @@ export const mapPrismaTaskToResponseDTO = (task: PrismaTask & { profile?: { mong
     scheduledAt: task.scheduledAt ?? null,
     completedAt: task.completedAt ?? null,
     departmentId: task.departmentId ?? null,
+    projectId: task.projectId ?? null,
     isAssigned: task.isAssigned,
     assignedTo: task.assignedTo ?? null,
     assignedBy: task.assignedBy ?? null,
@@ -37,16 +31,14 @@ export const mapPrismaTaskToResponseDTO = (task: PrismaTask & { profile?: { mong
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     __v: 0,
+    createdBy: creatorProfile
+      ? { name: creatorProfile.name ?? null, email: creatorProfile.email ?? null, avatar: creatorProfile.avatar ?? null }
+      : null,
   };
 };
 
-/**
- * mapPrismaTasksToResponseDTO
- *
- * Maps an array of Prisma Task records to TaskResponseDTO[].
- */
 export const mapPrismaTasksToResponseDTO = (
-  tasks: Array<PrismaTask & { profile?: { mongoId?: string | null } }>
+  tasks: Array<PrismaTask & { profile?: ViewerProfile }>
 ): TaskResponseDTO[] => {
-  return tasks.map(mapPrismaTaskToResponseDTO);
+  return tasks.map((t) => mapPrismaTaskToResponseDTO(t));
 };

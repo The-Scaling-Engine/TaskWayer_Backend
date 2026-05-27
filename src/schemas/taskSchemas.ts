@@ -9,6 +9,7 @@ export const createTaskSchema = z.object({
   deadline:          z.string().datetime({ offset: true }).nullable().optional(),
   scheduledAt:       z.string().datetime({ offset: true }).nullable().optional(),
   departmentId:      z.string().uuid('Invalid departmentId').optional(),
+  projectId:         z.string().uuid('Invalid projectId').optional(),
   assignedTo:        z.string().uuid('Invalid assignedTo').optional(),
   isRecurring:       z.boolean().default(false),
   recurrenceType:    z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']).optional().nullable(),
@@ -62,5 +63,6 @@ export const getTasksQuerySchema = z.object({
   assignedByMe:   z.coerce.boolean().optional(),
   assignedToMe:   z.coerce.boolean().optional(),
   departmentId:   z.string().uuid().optional(),
+  projectId:      z.string().uuid().optional(),
 });
 export type GetTasksQuery = z.infer<typeof getTasksQuerySchema>;

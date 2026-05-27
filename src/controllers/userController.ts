@@ -82,6 +82,36 @@ export const getMyMemberships = async (req: AuthRequest, res: Response): Promise
   }
 };
 
+export const searchUsers = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const limit = Math.min(Number(req.query.limit) || 8, 20);
+
+    if (!q) {
+      res.status(200).json({ success: true, data: { users: [] } });
+      return;
+    }
+
+    const users = await prisma.profile.findMany({
+      where: {
+        status: { not: 'BANNED' },
+        OR: [
+          { name:  { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, email: true, name: true, avatar: true },
+      take: limit,
+      orderBy: { name: 'asc' },
+    });
+
+    res.status(200).json({ success: true, data: { users } });
+  } catch (error) {
+    logger.error({ err: error, requestId: req.requestId }, 'searchUsers failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { name, email, avatar, username, jobTitle } = res.locals.validated.body as UpdateProfileInput;

@@ -213,6 +213,7 @@ export interface CreateTaskData {
   completedAt?: Date;
   profileId: string;
   departmentId?: string;
+  projectId?: string;
   mongoId?: string;
   isRecurring?: boolean;
   recurrenceType?: RecurrenceType;
@@ -253,6 +254,7 @@ export interface TaskFilterOptions {
   assignedByMe?:   boolean;
   assignedToMe?:   boolean;
   departmentId?:   string;
+  projectId?:      string;
 }
 
 export interface TaskSortOptions {

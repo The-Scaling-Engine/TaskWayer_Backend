@@ -13,6 +13,13 @@ import {
 import { isUUID } from '../../utils/compatibility';
 import { buildSkip } from '../../utils/pagination';
 
+const creatorProfileSelect = {
+  mongoId: true,
+  name: true,
+  email: true,
+  avatar: true,
+} as const;
+
 export class PrismaTaskRepository implements ITaskRepository {
 
   // ─────────────────────────────────────────────────
@@ -28,12 +35,12 @@ export class PrismaTaskRepository implements ITaskRepository {
    * During Phase 3 cut-over, frontend URLs may still contain Mongo _id strings.
    * This method ensures those requests resolve correctly without breaking.
    */
-  async findByIdOrMongoId(id: string): Promise<Task | null> {
+  async findByIdOrMongoId(id: string): Promise<Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null } | null> {
+    const include = { profile: { select: creatorProfileSelect } };
     if (isUUID(id)) {
-      return prisma.task.findUnique({ where: { id } });
+      return prisma.task.findUnique({ where: { id }, include });
     }
-    // Fallback: treat as mongoId (legacy Mongo _id hex string)
-    return prisma.task.findUnique({ where: { mongoId: id } });
+    return prisma.task.findUnique({ where: { mongoId: id }, include });
   }
 
   // ─────────────────────────────────────────────────
@@ -112,6 +119,10 @@ export class PrismaTaskRepository implements ITaskRepository {
       additionalFilters.departmentId = filter.departmentId;
     }
 
+    if (filter.projectId) {
+      additionalFilters.projectId = filter.projectId;
+    }
+
     if (filter.assignedByMe) {
       additionalFilters.assignedBy = profileId;
     }
@@ -138,7 +149,7 @@ export class PrismaTaskRepository implements ITaskRepository {
 
     // ── Execute count + rows in single transaction to avoid drift ──
     const [tasks, total] = await prisma.$transaction([
-      prisma.task.findMany({ where, orderBy, skip, take: limit }),
+      prisma.task.findMany({ where, orderBy, skip, take: limit, include: { profile: { select: creatorProfileSelect } } }),
       prisma.task.count({ where }),
     ]);
 
@@ -173,7 +184,7 @@ export class PrismaTaskRepository implements ITaskRepository {
     }
 
     const [tasks, total] = await prisma.$transaction([
-      prisma.task.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip, take: limit }),
+      prisma.task.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip, take: limit, include: { profile: { select: creatorProfileSelect } } }),
       prisma.task.count({ where }),
     ]);
 

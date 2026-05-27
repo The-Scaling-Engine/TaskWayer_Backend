@@ -70,6 +70,13 @@ enum DepartmentMemberRole {
   VIEWER
 }
 
+enum ProjectMemberRole {
+  OWNER
+  MANAGER
+  MEMBER
+  VIEWER
+}
+
 enum MembershipStatus {
   PENDING
   ACTIVE
@@ -98,6 +105,8 @@ model Profile {
   notifications        Notification[]
   activityLogs         ActivityLog[]
   timeSessions         TimeTrackingSession[]
+  ownedProjects        Project[]             @relation("ProjectOwner")
+  projectMembers       ProjectMember[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -112,6 +121,7 @@ model Department {
   invitations  DepartmentInvitation[]
   tasks        Task[]
   activityLogs ActivityLog[]
+  projects     ProjectDepartment[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -193,6 +203,8 @@ model Task {
   profile             Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
   departmentId        String?
   department          Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  projectId           String?
+  project             Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   comments            Comment[]
   timeSessions        TimeTrackingSession[]
   completedAt         DateTime?
@@ -221,6 +233,8 @@ model Task {
   @@index([departmentId, completedAt])
   @@index([completedAt])
   @@index([recurrenceParentId])
+  @@index([projectId])
+  @@index([projectId, status])
   @@map("tasks")
 }
 
@@ -301,4 +315,58 @@ model TimeTrackingSession {
   @@index([profileId, startedAt])
   @@index([profileId, stoppedAt])
   @@map("time_tracking_sessions")
+}
+
+// ─── V3: Project Models ──────────────────────────────────────
+
+model Project {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  ownerId     String
+  archivedAt  DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner       Profile             @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  departments ProjectDepartment[]
+  members     ProjectMember[]
+  tasks       Task[]
+
+  @@index([ownerId])
+  @@index([deletedAt])
+  @@index([archivedAt])
+  @@map("projects")
+}
+
+model ProjectDepartment {
+  id           String     @id @default(uuid())
+  projectId    String
+  departmentId String
+  createdAt    DateTime   @default(now())
+
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, departmentId])
+  @@index([projectId])
+  @@index([departmentId])
+  @@map("project_departments")
+}
+
+model ProjectMember {
+  id        String            @id @default(uuid())
+  projectId String
+  profileId String
+  role      ProjectMemberRole @default(MEMBER)
+  joinedAt  DateTime          @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, profileId])
+  @@index([projectId])
+  @@index([profileId])
+  @@map("project_members")
 }

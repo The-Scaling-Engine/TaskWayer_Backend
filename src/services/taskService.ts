@@ -19,6 +19,7 @@ import { buildScopedTaskFilter } from '../utils/taskQueryBuilder';
 import { mapPrismaTaskToResponseDTO } from '../dto/task/taskMapper';
 import { TaskResponseDTO } from '../dto/task/taskResponse.dto';
 import { PaginatedTasksResponseDTO, PaginationDTO } from '../dto/task/pagination.dto';
+import { projectRepository, ProjectMemberRole } from '../repositories/prisma/projectRepository';
 
 // ─── Input Types ──────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ export interface CreateTaskInput {
   deadline?: string | null;
   scheduledAt?: string | null;
   departmentId?: string;
+  projectId?: string;
   assignedTo?: string;
   isRecurring?: boolean;
   recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
@@ -69,6 +71,7 @@ export interface GetTasksInput {
   assignedByMe?:   boolean;
   assignedToMe?:   boolean;
   departmentId?:   string;
+  projectId?:      string;
 }
 
 // ─── Error ────────────────────────────────────────────────────────────────────
@@ -135,6 +138,16 @@ export class TaskService {
 
     const profile = await this.resolveProfile(profileId);
 
+    if (input.projectId) {
+      const projectMember = await projectRepository.getMember(input.projectId, profileId);
+      if (!projectMember) {
+        throw new TaskServiceError('You are not a member of this project', 403);
+      }
+      if (projectMember.role === ProjectMemberRole.VIEWER) {
+        throw new TaskServiceError('VIEWER cannot create tasks in this project', 403);
+      }
+    }
+
     if (input.departmentId) {
       const membership = await this.membershipRepo.findByUserAndDepartment(
         profileId,
@@ -175,6 +188,7 @@ export class TaskService {
       scheduledAt:       input.scheduledAt ? new Date(input.scheduledAt) : new Date(),
       ...(input.deadline        != null && { deadline:        new Date(input.deadline) }),
       ...(input.departmentId    != null && { departmentId:    input.departmentId }),
+      ...(input.projectId       != null && { projectId:       input.projectId }),
       ...(input.assignedTo      != null && { assignedTo: input.assignedTo, assignedBy: profile.id, isAssigned: true }),
       ...(completedNow !== undefined    && { completedAt:     completedNow }),
       isRecurring:       input.isRecurring ?? false,
@@ -208,6 +222,7 @@ export class TaskService {
           scheduledAt:       scheduledDate,
           ...(deadline !== undefined && { deadline }),
           ...(task.departmentId    && { departmentId: task.departmentId }),
+          ...(task.projectId      && { projectId:    task.projectId }),
           isRecurring:        true,
           recurrenceType:     task.recurrenceType!,
           recurrenceEndDate:  task.recurrenceEndDate,
@@ -228,7 +243,7 @@ export class TaskService {
       }
     }
 
-    return mapPrismaTaskToResponseDTO({ ...task, profile });
+    return mapPrismaTaskToResponseDTO({ ...task, profile }, { name: profile.name, email: profile.email, avatar: profile.avatar });
   }
 
   // ─── Read (list) ──────────────────────────────────────────────────────────
@@ -242,7 +257,9 @@ export class TaskService {
       .filter(m => m.status === 'ACTIVE')
       .map(m => m.departmentId);
 
-    const scopeFilter = buildScopedTaskFilter(profileId, departmentIds, isGlobalAdmin);
+    const projectIds = await projectRepository.getProjectIdsForMember(profileId);
+
+    const scopeFilter = buildScopedTaskFilter(profileId, departmentIds, projectIds, isGlobalAdmin);
 
     if (query.status && !['todo', 'doing', 'done'].includes(query.status)) {
       throw new TaskServiceError('Invalid status. Must be: todo, doing, or done', 400);
@@ -267,6 +284,14 @@ export class TaskService {
     if (query.assignedByMe)   filter.assignedByMe   = query.assignedByMe;
     if (query.assignedToMe)   filter.assignedToMe   = query.assignedToMe;
     if (query.departmentId)   filter.departmentId   = query.departmentId;
+
+    if (query.projectId) {
+      const projectMember = await projectRepository.getMember(query.projectId, profileId);
+      if (!projectMember && !isGlobalAdmin) {
+        throw new TaskServiceError('You are not a member of this project', 403);
+      }
+      filter.projectId = query.projectId;
+    }
 
     const sort: TaskSortOptions = {};
     if (query.sortBy) sort.sortBy = query.sortBy;
@@ -295,7 +320,11 @@ export class TaskService {
       hasPrevPage: result.page > 1,
     };
 
-    const data = result.tasks.map(task => mapPrismaTaskToResponseDTO({ ...task, profile }));
+    const data = result.tasks.map(task => {
+      const taskWithCreator = task as typeof task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null };
+      const creatorProfile = taskWithCreator.profile;
+      return mapPrismaTaskToResponseDTO({ ...task, profile }, creatorProfile);
+    });
 
     return { success: true, count: data.length, pagination, data };
   }
@@ -311,7 +340,8 @@ export class TaskService {
     const profile = await this.resolveProfile(profileId);
     await this.resolveTaskPermission(task, profileId, profile, 'read');
 
-    return mapPrismaTaskToResponseDTO({ ...task, profile });
+    const taskWithCreator = task as typeof task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null };
+    return mapPrismaTaskToResponseDTO({ ...task, profile }, taskWithCreator.profile);
   }
 
   // ─── Update ───────────────────────────────────────────────────────────────
@@ -373,7 +403,7 @@ export class TaskService {
       updatedAt: updated.updatedAt,
     });
 
-    return mapPrismaTaskToResponseDTO({ ...updated, profile });
+    return mapPrismaTaskToResponseDTO({ ...updated, profile }, { name: profile.name, email: profile.email, avatar: profile.avatar });
   }
 
   // ─── Stats ────────────────────────────────────────────────────────────────

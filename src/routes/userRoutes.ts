@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getProfile, updateProfile, getMyMemberships } from '../controllers/userController';
+import { getProfile, updateProfile, getMyMemberships, searchUsers } from '../controllers/userController';
 import { protect } from '../middleware/authMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
 import { updateProfileSchema } from '../schemas/userSchemas';
@@ -16,5 +16,8 @@ router.put('/profile', validateRequest({ body: updateProfileSchema }), updatePro
 
 // GET /api/user/memberships
 router.get('/memberships', getMyMemberships);
+
+// GET /api/user/search?q=&limit=
+router.get('/search', searchUsers);
 
 export default router;

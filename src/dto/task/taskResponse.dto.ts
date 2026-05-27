@@ -21,6 +21,7 @@ export interface TaskResponseDTO {
   scheduledAt: Date | null;
   completedAt: Date | null;
   departmentId: string | null;
+  projectId: string | null;
   isAssigned: boolean;
   assignedTo: string | null;
   assignedBy: string | null;
@@ -32,4 +33,5 @@ export interface TaskResponseDTO {
   createdAt: Date;
   updatedAt: Date;
   __v: number; // Mongoose compatibility field — always 0 for Prisma
+  createdBy: { name: string | null; email: string | null; avatar: string | null } | null;
 }
