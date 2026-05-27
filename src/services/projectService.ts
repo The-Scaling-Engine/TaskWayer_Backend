@@ -1,3 +1,5 @@
+import * as notificationService from './notificationService';
+import logger from '../config/logger';
 import {
   projectRepository,
   ProjectMemberRole,
@@ -198,7 +200,11 @@ export const addMember = async (
   const existing = await projectRepository.getMember(projectId, targetProfileId);
   if (existing) throw new ServiceError('User is already a project member', 409);
 
-  const member = await projectRepository.addMember(projectId, targetProfileId, role);
+  const [member, requester, project] = await Promise.all([
+    projectRepository.addMember(projectId, targetProfileId, role),
+    profileRepo.findById(requesterId),
+    projectRepository.findById(projectId),
+  ]);
 
   await logProjectActivity({
     projectId,
@@ -206,6 +212,19 @@ export const addMember = async (
     action:   'PROJECT_MEMBER_ADDED',
     metadata: { targetProfileId, role },
   });
+
+  const actorName = requester?.name ?? requester?.email ?? 'Someone';
+  const projectName = project?.name ?? 'a project';
+
+  void notificationService.createNotification({
+    userId:     targetProfileId,
+    type:       'PROJECT_MEMBER_JOINED',
+    title:      `You've been added to "${projectName}"`,
+    message:    `${actorName} added you to project "${projectName}" as ${role}.`,
+    payload:    { projectId, actorId: requesterId, role },
+    entityType: 'project',
+    entityId:   projectId,
+  }).catch(err => logger.error({ err, context: 'addMember:notification', projectId, targetProfileId }, 'Fire-and-forget failed'));
 
   return member;
 };
@@ -241,25 +260,42 @@ export const updateMemberRole = async (
   targetProfileId: string,
   role: ProjectMemberRole
 ) => {
-  // Only OWNER can change roles
-  await assertMember(projectId, requesterId, OWNER_ROLES);
+  const requesterMember = await projectRepository.getMember(projectId, requesterId);
+  if (!requesterMember) throw new ServiceError('Access denied: not a project member', 403);
 
-  const assignableRoles: ProjectMemberRole[] = [
-    ProjectMemberRole.MANAGER,
-    ProjectMemberRole.MEMBER,
-    ProjectMemberRole.VIEWER,
-  ];
-  if (!assignableRoles.includes(role)) {
-    throw new ServiceError(
-      `Invalid role. Assignable roles: ${assignableRoles.join(', ')}`,
-      400
-    );
+  const isOwner   = requesterMember.role === ProjectMemberRole.OWNER;
+  const isManager = requesterMember.role === ProjectMemberRole.MANAGER;
+
+  if (!isOwner && !isManager) {
+    throw new ServiceError('Only OWNER or MANAGER can change member roles', 403);
   }
 
   const targetMember = await projectRepository.getMember(projectId, targetProfileId);
   if (!targetMember) throw new ServiceError('Member not found in this project', 404);
   if (targetMember.role === ProjectMemberRole.OWNER) {
     throw new ServiceError('Cannot demote the project owner. Use transfer-ownership instead.', 400);
+  }
+
+  // MANAGER can only assign MEMBER or VIEWER — cannot promote to MANAGER/OWNER
+  const managerAssignableRoles: ProjectMemberRole[] = [ProjectMemberRole.MEMBER, ProjectMemberRole.VIEWER];
+  if (isManager && !managerAssignableRoles.includes(role)) {
+    throw new ServiceError('MANAGER can only assign MEMBER or VIEWER roles', 403);
+  }
+  // MANAGER cannot change another MANAGER's role
+  if (isManager && targetMember.role === ProjectMemberRole.MANAGER) {
+    throw new ServiceError('MANAGER cannot change another MANAGER\'s role', 403);
+  }
+
+  const ownerAssignableRoles: ProjectMemberRole[] = [
+    ProjectMemberRole.MANAGER,
+    ProjectMemberRole.MEMBER,
+    ProjectMemberRole.VIEWER,
+  ];
+  if (isOwner && !ownerAssignableRoles.includes(role)) {
+    throw new ServiceError(
+      `Invalid role. Assignable roles: ${ownerAssignableRoles.join(', ')}`,
+      400
+    );
   }
 
   const updated = await projectRepository.updateMemberRole(projectId, targetProfileId, role);

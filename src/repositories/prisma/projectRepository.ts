@@ -212,6 +212,14 @@ export class PrismaProjectRepository {
     });
     return rows.map(r => r.projectId);
   }
+
+  async getMemberIds(projectId: string): Promise<string[]> {
+    const rows = await prisma.projectMember.findMany({
+      where: { projectId },
+      select: { profileId: true },
+    });
+    return rows.map(r => r.profileId);
+  }
 }
 
 export const projectRepository = new PrismaProjectRepository();

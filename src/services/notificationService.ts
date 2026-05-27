@@ -1,6 +1,7 @@
 import { Notification } from '@prisma/client';
 import { PrismaNotificationRepository } from '../repositories/prisma/notificationRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
+import { projectRepository } from '../repositories/prisma/projectRepository';
 import { CreateNotificationData } from '../repositories/interfaces';
 import * as realtimeService from './realtimeService';
 import logger from '../config/logger';
@@ -128,4 +129,51 @@ export const markRead = async (
 
 export const markAllRead = async (userId: string): Promise<number> => {
   return notificationRepo.markAllRead(userId);
+};
+
+// ─── Note added notification ──────────────────────────────────
+
+export const notifyNoteAdded = async (params: {
+  taskId: string;
+  taskTitle: string;
+  projectId: string | null;
+  taskOwnerId: string;
+  assignedTo?: string | null;
+  authorId: string;
+  authorName: string | null;
+  noteId: string;
+}): Promise<void> => {
+  const { taskId, taskTitle, projectId, taskOwnerId, assignedTo, authorId, authorName, noteId } = params;
+  const actor = authorName ?? 'Someone';
+
+  const recipientIds = new Set<string>();
+  recipientIds.add(taskOwnerId);
+  if (assignedTo) recipientIds.add(assignedTo);
+
+  if (projectId) {
+    try {
+      const memberIds = await projectRepository.getMemberIds(projectId);
+      memberIds.forEach(id => recipientIds.add(id));
+    } catch (err) {
+      logger.error({ err, context: 'notifyNoteAdded:getMemberIds', projectId }, 'Failed to fetch project members');
+    }
+  }
+
+  recipientIds.delete(authorId);
+
+  for (const userId of recipientIds) {
+    try {
+      await createNotification({
+        userId,
+        type: 'NOTE_ADDED',
+        title: `${actor} added a note to "${taskTitle}"`,
+        message: taskTitle,
+        payload: { taskId, projectId, authorId, noteId },
+        entityType: 'task',
+        entityId: taskId,
+      });
+    } catch (err) {
+      logger.error({ err, context: 'notifyNoteAdded', taskId, userId }, 'Note added notification failed');
+    }
+  }
 };
