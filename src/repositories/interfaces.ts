@@ -214,6 +214,7 @@ export interface CreateTaskData {
   profileId: string;
   departmentId?: string;
   projectId?: string;
+  columnId?: string;
   mongoId?: string;
   isRecurring?: boolean;
   recurrenceType?: RecurrenceType;
@@ -234,6 +235,7 @@ export interface UpdateTaskData {
   scheduledAt?: Date | null;
   completedAt?: Date | null;
   departmentId?: string | null;
+  columnId?: string | null;
   isRecurring?: boolean;
   recurrenceType?: RecurrenceType | null;
   recurrenceEndDate?: Date | null;

@@ -17,6 +17,7 @@ import {
   linkDepartment,
   unlinkDepartment,
 } from '../controllers/projectController';
+import boardColumnRoutes from './boardColumnRoutes';
 
 const router = Router();
 
@@ -70,5 +71,9 @@ router.post('/:id/departments', linkDepartment);
 
 // DELETE /api/projects/:id/departments/:departmentId
 router.delete('/:id/departments/:departmentId', unlinkDepartment);
+
+// ── Board Columns ─────────────────────────────────────────────
+// GET/POST/PATCH/DELETE /api/projects/:id/columns[/...]
+router.use('/:id/columns', boardColumnRoutes);
 
 export default router;

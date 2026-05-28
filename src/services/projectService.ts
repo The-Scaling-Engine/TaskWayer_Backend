@@ -7,6 +7,7 @@ import {
   MANAGER_ROLES,
   ANY_MEMBER_ROLES,
 } from '../repositories/prisma/projectRepository';
+import { boardColumnRepository } from '../repositories/prisma/boardColumnRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
 import { PrismaMembershipRepository } from '../repositories/prisma/membershipRepository';
 import { ServiceError } from './departmentService';
@@ -43,6 +44,9 @@ export const createProject = async (ownerId: string, data: { name: string; descr
     ownerId,
     ...(data.description?.trim() ? { description: data.description.trim() } : {}),
   });
+
+  // Seed default columns (To Do, In Progress, Done) for new project
+  await boardColumnRepository.seedDefaultColumns(project.id);
 
   await logProjectActivity({
     projectId: project.id,

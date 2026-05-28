@@ -33,6 +33,7 @@ export interface CreateTaskInput {
   scheduledAt?: string | null;
   departmentId?: string;
   projectId?: string;
+  columnId?: string;
   assignedTo?: string;
   isRecurring?: boolean;
   recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
@@ -47,6 +48,7 @@ export interface UpdateTaskInput {
   tags?: string[];
   deadline?: string | null;
   scheduledAt?: string | null;
+  columnId?: string | null;
   isRecurring?: boolean;
   recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
   recurrenceEndDate?: string | null;
@@ -189,6 +191,7 @@ export class TaskService {
       ...(input.deadline        != null && { deadline:        new Date(input.deadline) }),
       ...(input.departmentId    != null && { departmentId:    input.departmentId }),
       ...(input.projectId       != null && { projectId:       input.projectId }),
+      ...(input.columnId        != null && { columnId:        input.columnId }),
       ...(input.assignedTo      != null && { assignedTo: input.assignedTo, assignedBy: profile.id, isAssigned: true }),
       ...(completedNow !== undefined    && { completedAt:     completedNow }),
       isRecurring:       input.isRecurring ?? false,
@@ -375,6 +378,7 @@ export class TaskService {
     if (input.tags              !== undefined) data.tags              = input.tags;
     if (input.deadline          !== undefined) data.deadline          = input.deadline ? new Date(input.deadline) : null;
     if (input.scheduledAt       !== undefined) data.scheduledAt       = input.scheduledAt ? new Date(input.scheduledAt) : null;
+    if (input.columnId          !== undefined) data.columnId          = input.columnId ?? null;
     if (input.isRecurring       !== undefined) data.isRecurring       = input.isRecurring;
     if (input.recurrenceType    !== undefined) data.recurrenceType    = input.recurrenceType as RecurrenceType | null;
     if (input.recurrenceEndDate !== undefined) data.recurrenceEndDate = input.recurrenceEndDate ? new Date(input.recurrenceEndDate) : null;

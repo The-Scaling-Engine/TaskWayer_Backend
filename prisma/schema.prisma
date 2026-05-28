@@ -208,6 +208,8 @@ model Task {
   department          Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   projectId           String?
   project             Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  columnId            String?
+  column              BoardColumn?    @relation(fields: [columnId], references: [id], onDelete: SetNull)
   comments            Comment[]
   notes               TaskNote[]
   timeSessions        TimeTrackingSession[]
@@ -239,6 +241,7 @@ model Task {
   @@index([recurrenceParentId])
   @@index([projectId])
   @@index([projectId, status])
+  @@index([columnId])
   @@map("tasks")
 }
 
@@ -337,6 +340,7 @@ model Project {
   departments ProjectDepartment[]
   members     ProjectMember[]
   tasks       Task[]
+  columns     BoardColumn[]
 
   @@index([ownerId])
   @@index([deletedAt])
@@ -373,6 +377,25 @@ model ProjectMember {
   @@index([projectId])
   @@index([profileId])
   @@map("project_members")
+}
+
+// ─── V3: Phase 3 Models ──────────────────────────────────────
+
+model BoardColumn {
+  id        String   @id @default(uuid())
+  projectId String?
+  name      String
+  color     String   @default("#94a3b8")
+  order     Int
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([projectId])
+  @@index([projectId, order])
+  @@map("board_columns")
 }
 
 // ─── V3: Phase 2 Models ──────────────────────────────────────
