@@ -41,6 +41,9 @@ const router = Router();
 
 router.use(protect);
 
+// R4 ORDERING GUARD: Any static routes (e.g. /linkable) MUST be registered
+// BEFORE this wildcard middleware, or Express will match them as {departmentId: 'linkable'}.
+// When adding Step D.5 GET /linkable → insert it above this line.
 // All routes require resolving department context first
 router.use('/:departmentId', attachDepartmentContext);
 

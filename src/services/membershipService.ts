@@ -80,6 +80,15 @@ export const addMember = async (
   const targetProfile = await profileRepo.findById(targetUserId);
   if (!targetProfile) throw new ServiceError('User not found', 404);
 
+  // C1: pre-check for 1-active-dept-per-user rule (defense-in-depth before DB partial index)
+  const activeElsewhere = await membershipRepo.findActiveMembershipByUser(targetUserId);
+  if (activeElsewhere && activeElsewhere.departmentId !== departmentId) {
+    throw new ServiceError(
+      `User is already an active member of "${activeElsewhere.department.name}". A user can only belong to one active department.`,
+      409
+    );
+  }
+
   const membership = await prisma.$transaction(async (tx) => {
     const existing = await tx.departmentMember.findUnique({
       where: { userId_departmentId: { userId: targetUserId, departmentId } },
@@ -96,7 +105,7 @@ export const addMember = async (
     return tx.departmentMember.create({
       data: { userId: targetUserId, departmentId, role, invitedBy: actorId },
     });
-  }).catch((err: unknown) => mapPrismaConflict(err, 'User is already an active member of this department'));
+  }).catch((err: unknown) => mapPrismaConflict(err, 'User already has an active department membership'));
 
   void activityLogRepo.create({
     actorUserId: actorId,

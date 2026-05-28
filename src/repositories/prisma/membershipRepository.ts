@@ -106,4 +106,13 @@ export class PrismaMembershipRepository implements IMembershipRepository {
       where: { departmentId, status: 'ACTIVE' },
     });
   }
+
+  async findActiveMembershipByUser(
+    userId: string
+  ): Promise<(import('@prisma/client').DepartmentMember & { department: { id: string; name: string } }) | null> {
+    return prisma.departmentMember.findFirst({
+      where: { userId, status: 'ACTIVE' },
+      include: { department: { select: { id: true, name: true } } },
+    }) as Promise<(import('@prisma/client').DepartmentMember & { department: { id: string; name: string } }) | null>;
+  }
 }
