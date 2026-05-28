@@ -11,16 +11,14 @@ export const createTaskSchema = z.object({
   departmentId:      z.string().uuid('Invalid departmentId').optional(),
   projectId:         z.string().uuid('Invalid projectId').optional(),
   assignedTo:        z.string().uuid('Invalid assignedTo').optional(),
-  isRecurring:       z.boolean().default(false),
-  recurrenceType:    z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']).optional().nullable(),
-  recurrenceEndDate: z.string().datetime({ offset: true }).nullable().optional(),
+  isRecurring:        z.boolean().default(false),
+  recurrenceType:     z.enum(['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']).optional().nullable(),
+  recurrenceInterval: z.coerce.number().int().positive().max(365).nullable().optional(),
+  recurrenceEndDate:  z.string().datetime({ offset: true }).nullable().optional(),
 }).superRefine((data, ctx) => {
   if (data.isRecurring) {
-    if (!data.deadline) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'deadline is required for recurring tasks', path: ['deadline'] });
-    }
     if (!data.recurrenceType) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select how often this task repeats (daily, weekly, monthly, or yearly)', path: ['recurrenceType'] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select how often this task repeats', path: ['recurrenceType'] });
     }
   }
 });
@@ -34,14 +32,19 @@ export const updateTaskSchema = z.object({
   tags:              z.array(z.string().trim()).optional(),
   deadline:          z.string().datetime({ offset: true }).nullable().optional(),
   scheduledAt:       z.string().datetime({ offset: true }).nullable().optional(),
-  isRecurring:       z.boolean().optional(),
-  recurrenceType:    z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']).optional().nullable(),
-  recurrenceEndDate: z.string().datetime({ offset: true }).nullable().optional(),
+  isRecurring:        z.boolean().optional(),
+  recurrenceType:     z.enum(['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']).optional().nullable(),
+  recurrenceInterval: z.coerce.number().int().positive().max(365).nullable().optional(),
+  recurrenceEndDate:  z.string().datetime({ offset: true }).nullable().optional(),
 });
 export type UpdateTaskBody = z.infer<typeof updateTaskSchema>;
 
 export const cancelRecurrenceSchema = z.object({
   keepChildren: z.boolean(),
+});
+
+export const cancelFromDateSchema = z.object({
+  fromDate: z.string().date('fromDate must be a valid date (YYYY-MM-DD)'),
 });
 
 export const getTasksQuerySchema = z.object({

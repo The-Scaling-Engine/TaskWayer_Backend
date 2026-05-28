@@ -113,6 +113,7 @@ export class PrismaTaskRepository implements ITaskRepository {
 
     if (filter.personal) {
       additionalFilters.departmentId = null;
+      additionalFilters.projectId = null;
     }
 
     if (filter.departmentId) {
@@ -280,6 +281,17 @@ export class PrismaTaskRepository implements ITaskRepository {
   async deleteManyByParentId(parentId: string): Promise<number> {
     const result = await prisma.task.deleteMany({
       where: { recurrenceParentId: parentId, status: 'todo' },
+    });
+    return result.count;
+  }
+
+  async deleteManyByParentIdFromDate(parentId: string, fromDate: Date): Promise<number> {
+    const result = await prisma.task.deleteMany({
+      where: {
+        recurrenceParentId: parentId,
+        scheduledAt: { gte: fromDate },
+        status: { not: 'done' },
+      },
     });
     return result.count;
   }

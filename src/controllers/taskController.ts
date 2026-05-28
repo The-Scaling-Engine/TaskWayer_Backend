@@ -116,6 +116,29 @@ export const cancelRecurrence = async (req: AuthRequest, res: Response): Promise
   }
 };
 
+export const cancelFromDate = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { fromDate } = res.locals.validated.body as { fromDate: string };
+    const result = await taskService.cancelFromDate(
+      req.user!.prismaId,
+      req.params['id'] as string,
+      fromDate
+    );
+    res.status(200).json({
+      success: true,
+      message: `Cancelled ${result.cancelled} occurrence${result.cancelled === 1 ? '' : 's'} from ${fromDate} onwards.`,
+      data: result,
+    });
+  } catch (error) {
+    if (error instanceof TaskServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'cancelFromDate failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 export const deleteTask = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await taskService.deleteTask(req.user!.prismaId, req.params['id'] as string);

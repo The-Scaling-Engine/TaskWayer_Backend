@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
 import { taskWriteLimiter } from '../middleware/rateLimiter';
-import { createTask, getTasks, updateTask, deleteTask, getTaskStats, cancelRecurrence } from '../controllers/taskController';
-import { createTaskSchema, updateTaskSchema, getTasksQuerySchema, cancelRecurrenceSchema } from '../schemas/taskSchemas';
+import { createTask, getTasks, updateTask, deleteTask, getTaskStats, cancelRecurrence, cancelFromDate } from '../controllers/taskController';
+import { createTaskSchema, updateTaskSchema, getTasksQuerySchema, cancelRecurrenceSchema, cancelFromDateSchema } from '../schemas/taskSchemas';
 import { uuidParamSchema } from '../schemas/commonSchemas';
 
 const router = Router();
@@ -25,6 +25,9 @@ router.put('/:id', taskWriteLimiter, validateRequest({ params: uuidParamSchema, 
 
 // POST /api/tasks/:id/cancel-recurrence
 router.post('/:id/cancel-recurrence', taskWriteLimiter, validateRequest({ params: uuidParamSchema, body: cancelRecurrenceSchema }), cancelRecurrence);
+
+// POST /api/tasks/:id/cancel-from
+router.post('/:id/cancel-from', taskWriteLimiter, validateRequest({ params: uuidParamSchema, body: cancelFromDateSchema }), cancelFromDate);
 
 // DELETE /api/tasks/:id
 router.delete('/:id', taskWriteLimiter, validateRequest({ params: uuidParamSchema }), deleteTask);

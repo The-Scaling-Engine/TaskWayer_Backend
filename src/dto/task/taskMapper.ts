@@ -26,6 +26,7 @@ export const mapPrismaTaskToResponseDTO = (
     userId: task.profile?.mongoId ?? task.profileId,
     isRecurring: task.isRecurring,
     recurrenceType: (task.recurrenceType as RecurrenceType | null) ?? null,
+    recurrenceInterval: task.recurrenceInterval ?? null,
     recurrenceEndDate: task.recurrenceEndDate ?? null,
     recurrenceParentId: task.recurrenceParentId ?? null,
     createdAt: task.createdAt,

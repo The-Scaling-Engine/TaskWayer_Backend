@@ -218,6 +218,7 @@ export interface CreateTaskData {
   mongoId?: string;
   isRecurring?: boolean;
   recurrenceType?: RecurrenceType;
+  recurrenceInterval?: number | null;
   recurrenceEndDate?: Date | null;
   recurrenceParentId?: string;
   isAssigned?: boolean;
@@ -238,6 +239,7 @@ export interface UpdateTaskData {
   columnId?: string | null;
   isRecurring?: boolean;
   recurrenceType?: RecurrenceType | null;
+  recurrenceInterval?: number | null;
   recurrenceEndDate?: Date | null;
 }
 
@@ -387,6 +389,7 @@ export interface ITaskRepository {
   update(id: string, data: UpdateTaskData): Promise<Task>;
   delete(id: string): Promise<void>;
   deleteManyByParentId(parentId: string): Promise<number>;
+  deleteManyByParentIdFromDate(parentId: string, fromDate: Date): Promise<number>;
   count(profileId: string): Promise<number>;
   statsByStatus(profileId: string): Promise<TaskStatsResult>;
 }

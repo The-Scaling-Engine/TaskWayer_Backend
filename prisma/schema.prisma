@@ -59,7 +59,9 @@ enum NotificationType {
 enum RecurrenceType {
   DAILY
   WEEKLY
+  BIWEEKLY
   MONTHLY
+  QUARTERLY
   YEARLY
 }
 
@@ -219,6 +221,7 @@ model Task {
   assignedBy          String?
   isRecurring         Boolean         @default(false)
   recurrenceType      RecurrenceType?
+  recurrenceInterval  Int?
   recurrenceEndDate   DateTime?
   recurrenceParentId  String?
   scheduledAt         DateTime?

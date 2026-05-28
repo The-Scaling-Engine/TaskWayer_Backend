@@ -27,7 +27,8 @@ export interface TaskResponseDTO {
   assignedBy: string | null;
   userId: string;
   isRecurring: boolean;
-  recurrenceType: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
+  recurrenceType: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | null;
+  recurrenceInterval: number | null;
   recurrenceEndDate: Date | null;
   recurrenceParentId: string | null;
   createdAt: Date;

@@ -36,7 +36,8 @@ export interface CreateTaskInput {
   columnId?: string;
   assignedTo?: string;
   isRecurring?: boolean;
-  recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
+  recurrenceType?: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | null;
+  recurrenceInterval?: number | null;
   recurrenceEndDate?: string | null;
 }
 
@@ -50,7 +51,8 @@ export interface UpdateTaskInput {
   scheduledAt?: string | null;
   columnId?: string | null;
   isRecurring?: boolean;
-  recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
+  recurrenceType?: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | null;
+  recurrenceInterval?: number | null;
   recurrenceEndDate?: string | null;
 }
 
@@ -169,10 +171,7 @@ export class TaskService {
       if (!input.recurrenceType) {
         throw new TaskServiceError('recurrenceType is required for recurring tasks', 400);
       }
-      if (!input.deadline) {
-        throw new TaskServiceError('deadline is required for recurring tasks', 400);
-      }
-      if (input.recurrenceEndDate && new Date(input.recurrenceEndDate) <= new Date(input.deadline)) {
+      if (input.deadline && input.recurrenceEndDate && new Date(input.recurrenceEndDate) <= new Date(input.deadline)) {
         throw new TaskServiceError('The recurrence end date must be later than the task deadline', 400);
       }
     }
@@ -195,8 +194,9 @@ export class TaskService {
       ...(input.assignedTo      != null && { assignedTo: input.assignedTo, assignedBy: profile.id, isAssigned: true }),
       ...(completedNow !== undefined    && { completedAt:     completedNow }),
       isRecurring:       input.isRecurring ?? false,
-      ...(input.recurrenceType    != null && { recurrenceType:    input.recurrenceType as RecurrenceType }),
-      ...(input.recurrenceEndDate != null && { recurrenceEndDate: new Date(input.recurrenceEndDate) }),
+      ...(input.recurrenceType     != null && { recurrenceType:     input.recurrenceType as RecurrenceType }),
+      ...(input.recurrenceInterval != null && { recurrenceInterval: input.recurrenceInterval }),
+      ...(input.recurrenceEndDate  != null && { recurrenceEndDate:  new Date(input.recurrenceEndDate) }),
     });
 
     // Pre-generate all future instances so they appear on the calendar immediately
@@ -204,7 +204,8 @@ export class TaskService {
       const futureDates = generateRecurrenceDates(
         task.scheduledAt,
         task.recurrenceType,
-        task.recurrenceEndDate
+        task.recurrenceEndDate,
+        task.recurrenceInterval
       );
 
       const deadlineOffsetMs =
@@ -226,10 +227,11 @@ export class TaskService {
           ...(deadline !== undefined && { deadline }),
           ...(task.departmentId    && { departmentId: task.departmentId }),
           ...(task.projectId      && { projectId:    task.projectId }),
-          isRecurring:        true,
-          recurrenceType:     task.recurrenceType!,
-          recurrenceEndDate:  task.recurrenceEndDate,
-          recurrenceParentId: task.id,
+          isRecurring:         true,
+          recurrenceType:      task.recurrenceType!,
+          ...(task.recurrenceInterval != null && { recurrenceInterval: task.recurrenceInterval }),
+          recurrenceEndDate:   task.recurrenceEndDate,
+          recurrenceParentId:  task.id,
         };
       });
 
@@ -380,8 +382,9 @@ export class TaskService {
     if (input.scheduledAt       !== undefined) data.scheduledAt       = input.scheduledAt ? new Date(input.scheduledAt) : null;
     if (input.columnId          !== undefined) data.columnId          = input.columnId ?? null;
     if (input.isRecurring       !== undefined) data.isRecurring       = input.isRecurring;
-    if (input.recurrenceType    !== undefined) data.recurrenceType    = input.recurrenceType as RecurrenceType | null;
-    if (input.recurrenceEndDate !== undefined) data.recurrenceEndDate = input.recurrenceEndDate ? new Date(input.recurrenceEndDate) : null;
+    if (input.recurrenceType     !== undefined) data.recurrenceType     = input.recurrenceType as RecurrenceType | null;
+    if (input.recurrenceInterval !== undefined) data.recurrenceInterval = input.recurrenceInterval ?? null;
+    if (input.recurrenceEndDate  !== undefined) data.recurrenceEndDate  = input.recurrenceEndDate ? new Date(input.recurrenceEndDate) : null;
 
     // completedAt is server-managed only — client cannot inject this value.
     // Transition: non-done → done sets it once; done → non-done clears it;
@@ -444,6 +447,33 @@ export class TaskService {
     });
 
     return { deletedCount };
+  }
+
+  // ─── Cancel From Date ─────────────────────────────────────────────────────
+
+  async cancelFromDate(
+    profileId: string,
+    taskId: string,
+    fromDate: string
+  ): Promise<{ cancelled: number }> {
+    const task = await this.taskRepo.findByIdOrMongoId(taskId);
+    if (!task) throw new TaskServiceError('Task not found', 404);
+    if (!task.isRecurring) throw new TaskServiceError('Task is not recurring', 400);
+    if (task.recurrenceParentId) throw new TaskServiceError('Use the parent task to cancel from a date', 400);
+
+    const profile = await this.resolveProfile(profileId);
+    await this.resolveTaskPermission(task, profileId, profile, 'write');
+
+    const from = new Date(fromDate);
+
+    const cancelled = await this.taskRepo.deleteManyByParentIdFromDate(task.id, from);
+
+    // Set recurrenceEndDate to the day before fromDate
+    const newEndDate = new Date(from);
+    newEndDate.setUTCDate(newEndDate.getUTCDate() - 1);
+    await this.taskRepo.update(task.id, { recurrenceEndDate: newEndDate });
+
+    return { cancelled };
   }
 
   // ─── Delete ───────────────────────────────────────────────────────────────
