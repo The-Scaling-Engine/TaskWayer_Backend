@@ -1,14 +1,10 @@
 import { boardColumnRepository } from '../repositories/prisma/boardColumnRepository';
 import { projectRepository, MANAGER_ROLES } from '../repositories/prisma/projectRepository';
 import { ServiceError } from './departmentService';
+import { assertProjectReadable } from './projectService';
 
 // ─── Permission helpers ───────────────────────────────────────
 
-async function assertAccess(projectId: string, profileId: string) {
-  const member = await projectRepository.getMember(projectId, profileId);
-  if (!member) throw new ServiceError('Project not found or access denied', 404);
-  return member;
-}
 
 async function assertManager(projectId: string, profileId: string) {
   const member = await projectRepository.getMember(projectId, profileId);
@@ -22,7 +18,7 @@ async function assertManager(projectId: string, profileId: string) {
 // ─── Service ─────────────────────────────────────────────────
 
 export const getColumns = async (projectId: string, requesterId: string) => {
-  await assertAccess(projectId, requesterId);
+  await assertProjectReadable(projectId, requesterId);
   let columns = await boardColumnRepository.getColumnsByProjectId(projectId);
 
   if (columns.length === 0) {

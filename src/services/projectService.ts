@@ -4,9 +4,6 @@ import prisma from '../config/prisma';
 import {
   projectRepository,
   ProjectMemberRole,
-  OWNER_ROLES,
-  MANAGER_ROLES,
-  ANY_MEMBER_ROLES,
 } from '../repositories/prisma/projectRepository';
 import { boardColumnRepository } from '../repositories/prisma/boardColumnRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
@@ -19,18 +16,74 @@ const membershipRepo = new PrismaMembershipRepository();
 
 // ─── Permission helpers ───────────────────────────────────────
 
-async function assertMember(projectId: string, profileId: string, allowedRoles: ProjectMemberRole[]) {
+async function assertOwner(projectId: string, profileId: string) {
+  const project = await projectRepository.findById(projectId, true);
+  if (!project) throw new ServiceError('Project not found', 404);
   const member = await projectRepository.getMember(projectId, profileId);
-  if (!member) throw new ServiceError('Access denied: not a project member', 403);
-  if (!allowedRoles.includes(member.role)) {
-    throw new ServiceError('Access denied: insufficient project role', 403);
+  if (!member || member.role !== ProjectMemberRole.OWNER) {
+    throw new ServiceError('Only the project OWNER can perform this action', 403);
   }
   return member;
 }
 
-async function assertAccess(projectId: string, profileId: string) {
+async function isDeptManagerOfProject(projectId: string, profileId: string): Promise<boolean> {
+  const deptLinks = await prisma.projectDepartment.findMany({
+    where: { projectId },
+    select: { departmentId: true },
+  });
+  if (deptLinks.length === 0) return false;
+  const deptIds = deptLinks.map(d => d.departmentId);
+  const match = await prisma.departmentMember.findFirst({
+    where: {
+      userId: profileId,
+      departmentId: { in: deptIds },
+      role: { in: ['OWNER', 'ADMIN'] },
+      status: 'ACTIVE',
+    },
+  });
+  return !!match;
+}
+
+export async function assertProjectReadable(projectId: string, profileId: string): Promise<void> {
+  // Gate 0: deleted → 404 for everyone; archived → narrower access (no dept visibility)
+  const project = await projectRepository.findById(projectId, true);
+  if (!project) {
+    throw new ServiceError('Project not found or access denied', 404);
+  }
+  if (project.archivedAt != null) {
+    // Archived: only ProjectMembers + Org Admin — dept visibility excluded
+    const profile = await profileRepo.findById(profileId);
+    if (profile?.role === 'ADMIN') return;
+    const member = await projectRepository.getMember(projectId, profileId);
+    if (member) return;
+    throw new ServiceError('Project not found or access denied', 404);
+  }
+
+  // Gate 1: active project — Org Admin, ProjectMember, or Dept OWNER/ADMIN
+  const profile = await profileRepo.findById(profileId);
+  if (profile?.role === 'ADMIN') return;
   const member = await projectRepository.getMember(projectId, profileId);
-  if (!member) throw new ServiceError('Project not found or access denied', 404);
+  if (member) return;
+  const isDeptMgr = await isDeptManagerOfProject(projectId, profileId);
+  if (isDeptMgr) return;
+  throw new ServiceError('Project not found or access denied', 404);
+}
+
+export async function assertProjectMember(projectId: string, profileId: string) {
+  const project = await projectRepository.findById(projectId, true);
+  if (!project) throw new ServiceError('Project not found', 404);
+  const member = await projectRepository.getMember(projectId, profileId);
+  if (!member) throw new ServiceError('You are not a member of this project', 403);
+  return member;
+}
+
+export async function assertProjectManager(projectId: string, profileId: string) {
+  const project = await projectRepository.findById(projectId, true);
+  if (!project) throw new ServiceError('Project not found', 404);
+  const member = await projectRepository.getMember(projectId, profileId);
+  if (!member || !['OWNER', 'MANAGER'].includes(member.role)) {
+    throw new ServiceError('This action requires project OWNER or MANAGER role', 403);
+  }
   return member;
 }
 
@@ -93,7 +146,7 @@ export const getMyProjects = async (profileId: string, includeArchived = false) 
 };
 
 export const getProjectById = async (id: string, requesterId: string) => {
-  await assertAccess(id, requesterId);
+  await assertProjectReadable(id, requesterId);
   const project = await projectRepository.findById(id, true); // owner can view archived
   if (!project) throw new ServiceError('Project not found', 404);
   return project;
@@ -104,7 +157,7 @@ export const updateProject = async (
   requesterId: string,
   data: { name?: string; description?: string }
 ) => {
-  await assertMember(id, requesterId, MANAGER_ROLES);
+  await assertProjectManager(id, requesterId);
 
   const updateData: { name?: string; description?: string } = {};
   if (data.name !== undefined) {
@@ -121,7 +174,7 @@ export const updateProject = async (
 
 // Soft delete — logical deletion, irreversible via public API
 export const deleteProject = async (id: string, requesterId: string) => {
-  await assertMember(id, requesterId, OWNER_ROLES);
+  await assertOwner(id, requesterId);
 
   await logProjectActivity({
     projectId: id,
@@ -133,7 +186,7 @@ export const deleteProject = async (id: string, requesterId: string) => {
 };
 
 export const archiveProject = async (id: string, requesterId: string) => {
-  await assertMember(id, requesterId, MANAGER_ROLES);
+  await assertProjectManager(id, requesterId);
   const project = await projectRepository.findById(id, true); // include archived to detect duplicate
   if (!project) throw new ServiceError('Project not found', 404);
   if (project.archivedAt) throw new ServiceError('Project is already archived', 400);
@@ -148,7 +201,7 @@ export const archiveProject = async (id: string, requesterId: string) => {
 };
 
 export const unarchiveProject = async (id: string, requesterId: string) => {
-  await assertMember(id, requesterId, MANAGER_ROLES);
+  await assertProjectManager(id, requesterId);
   const project = await projectRepository.findById(id, true);
   if (!project) throw new ServiceError('Project not found', 404);
   if (!project.archivedAt) throw new ServiceError('Project is not archived', 400);
@@ -170,7 +223,7 @@ export const transferOwnership = async (
   newOwnerId: string
 ) => {
   // Only current OWNER can transfer
-  await assertMember(projectId, requesterId, OWNER_ROLES);
+  await assertOwner(projectId, requesterId);
 
   if (requesterId === newOwnerId) {
     throw new ServiceError('New owner must be a different user', 400);
@@ -204,7 +257,7 @@ export const transferOwnership = async (
 // ─── Members ──────────────────────────────────────────────────
 
 export const getProjectMembers = async (projectId: string, requesterId: string) => {
-  await assertAccess(projectId, requesterId);
+  await assertProjectReadable(projectId, requesterId);
   return projectRepository.getMembers(projectId);
 };
 
@@ -214,7 +267,7 @@ export const addMember = async (
   targetProfileId: string,
   role: ProjectMemberRole = ProjectMemberRole.MEMBER
 ) => {
-  await assertMember(projectId, requesterId, MANAGER_ROLES);
+  await assertProjectManager(projectId, requesterId);
 
   const assignableRoles: ProjectMemberRole[] = [
     ProjectMemberRole.MANAGER,
@@ -268,7 +321,7 @@ export const removeMember = async (
   requesterId: string,
   targetProfileId: string
 ) => {
-  await assertMember(projectId, requesterId, MANAGER_ROLES);
+  await assertProjectManager(projectId, requesterId);
 
   const targetMember = await projectRepository.getMember(projectId, targetProfileId);
   if (!targetMember) throw new ServiceError('Member not found in this project', 404);
@@ -374,7 +427,7 @@ export const linkDepartment = async (
   requesterId: string,
   departmentId: string
 ) => {
-  await assertMember(projectId, requesterId, MANAGER_ROLES);
+  await assertProjectManager(projectId, requesterId);
 
   // Requester must also be OWNER or ADMIN of the target department
   const deptMembership = await membershipRepo.findByUserAndDepartment(requesterId, departmentId);
@@ -405,7 +458,7 @@ export const unlinkDepartment = async (
   requesterId: string,
   departmentId: string
 ) => {
-  await assertMember(projectId, requesterId, MANAGER_ROLES);
+  await assertProjectManager(projectId, requesterId);
 
   const existing = await projectRepository.getDepartmentLink(projectId, departmentId);
   if (!existing) throw new ServiceError('Department is not linked to this project', 404);
