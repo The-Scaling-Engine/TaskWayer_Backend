@@ -32,6 +32,8 @@ import { initSocket, getIO } from './socket/index';
 import prisma from './config/prisma';
 import { sendError } from './utils/apiResponse';
 import { startDeadlineNotificationJob } from './jobs/deadlineNotificationJob';
+import { startDailyDigestJob } from './jobs/dailyDigestJob';
+import { startWeeklyDigestJob } from './jobs/weeklyDigestJob';
 
 const app = express();
 
@@ -154,6 +156,8 @@ initSocket(httpServer);
 
 // ─── Background jobs ──────────────────────────────────────────
 startDeadlineNotificationJob();
+startDailyDigestJob();
+startWeeklyDigestJob();
 
 // ─── Graceful shutdown ────────────────────────────────────────
 let isShuttingDown = false;

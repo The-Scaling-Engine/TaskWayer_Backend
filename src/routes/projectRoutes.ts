@@ -18,6 +18,7 @@ import {
   unlinkDepartment,
 } from '../controllers/projectController';
 import boardColumnRoutes from './boardColumnRoutes';
+import slackConfigRoutes from './slackConfigRoutes';
 
 const router = Router();
 
@@ -75,5 +76,10 @@ router.delete('/:id/departments/:departmentId', unlinkDepartment);
 // ── Board Columns ─────────────────────────────────────────────
 // GET/POST/PATCH/DELETE /api/projects/:id/columns[/...]
 router.use('/:id/columns', boardColumnRoutes);
+
+// ── Slack Config ──────────────────────────────────────────────
+// GET/PUT/DELETE /api/projects/:id/slack-config
+// POST /api/projects/:id/slack-config/test
+router.use('/:id/slack-config', slackConfigRoutes);
 
 export default router;

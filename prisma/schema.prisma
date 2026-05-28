@@ -344,6 +344,7 @@ model Project {
   members     ProjectMember[]
   tasks       Task[]
   columns     BoardColumn[]
+  slackConfig ProjectSlackConfig?
 
   @@index([ownerId])
   @@index([deletedAt])
@@ -420,4 +421,23 @@ model TaskNote {
   @@index([authorId])
   @@index([taskId, order])
   @@map("task_notes")
+}
+
+// ─── V3: Phase 5 Models ──────────────────────────────────────
+
+model ProjectSlackConfig {
+  id                String  @id @default(cuid())
+  projectId         String  @unique
+  webhookUrl        String
+  dailyEnabled      Boolean @default(true)
+  weeklyEnabled     Boolean @default(true)
+  managerWebhookUrl String?
+  memberWebhookUrl  String?
+  dailyTime         String  @default("18:00")
+  weeklyDay         Int     @default(5)
+  weeklyTime        String  @default("17:00")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_slack_configs")
 }
