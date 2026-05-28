@@ -1,5 +1,6 @@
 import * as notificationService from './notificationService';
 import logger from '../config/logger';
+import prisma from '../config/prisma';
 import {
   projectRepository,
   ProjectMemberRole,
@@ -59,7 +60,36 @@ export const createProject = async (ownerId: string, data: { name: string; descr
 };
 
 export const getMyProjects = async (profileId: string, includeArchived = false) => {
-  return projectRepository.findByProfileId(profileId, includeArchived);
+  const profile = await profileRepo.findById(profileId);
+  const isOrgAdmin = profile?.role === 'ADMIN';
+
+  // Fetch dept memberships ONCE — passed to findByProfileId AND used for annotation
+  let managerDeptIds: string[] = [];
+  if (!isOrgAdmin) {
+    const deptMemberships = await prisma.departmentMember.findMany({
+      where: { userId: profileId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } },
+      select: { departmentId: true },
+    });
+    managerDeptIds = deptMemberships.map(m => m.departmentId);
+  }
+
+  const projects = await projectRepository.findByProfileId(profileId, { includeArchived, managerDeptIds });
+
+  // Precedence: MEMBER > DEPARTMENT > ORG_ADMIN
+  return projects.map(project => {
+    let visibilitySource: 'MEMBER' | 'DEPARTMENT' | 'ORG_ADMIN';
+    if (
+      project.ownerId === profileId ||
+      project.members?.some((m: any) => m.profileId === profileId)
+    ) {
+      visibilitySource = 'MEMBER';
+    } else if (isOrgAdmin) {
+      visibilitySource = 'ORG_ADMIN';
+    } else {
+      visibilitySource = 'DEPARTMENT';
+    }
+    return { ...project, visibilitySource };
+  });
 };
 
 export const getProjectById = async (id: string, requesterId: string) => {

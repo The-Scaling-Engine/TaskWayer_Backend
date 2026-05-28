@@ -73,13 +73,34 @@ export class PrismaProjectRepository {
     });
   }
 
-  async findByProfileId(profileId: string, includeArchived = false) {
+  async findByProfileId(
+    profileId: string,
+    options: { includeArchived?: boolean; managerDeptIds?: string[] } = {}
+  ) {
+    const { includeArchived = false, managerDeptIds = [] } = options;
+
+    const profile = await prisma.profile.findUnique({
+      where: { id: profileId },
+      select: { role: true },
+    });
+
+    if (profile?.role === 'ADMIN') {
+      return prisma.project.findMany({
+        where: activeFilter(includeArchived),
+        include: projectInclude(),
+        orderBy: [{ createdAt: 'desc' }],
+      });
+    }
+
     return prisma.project.findMany({
       where: {
         ...activeFilter(includeArchived),
         OR: [
           { ownerId: profileId },
           { members: { some: { profileId } } },
+          ...(managerDeptIds.length > 0
+            ? [{ departments: { some: { departmentId: { in: managerDeptIds } } } }]
+            : []),
         ],
       },
       include: projectInclude(),
