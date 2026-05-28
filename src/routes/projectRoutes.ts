@@ -16,6 +16,7 @@ import {
   unarchiveProject,
   linkDepartment,
   unlinkDepartment,
+  getDepartments,
 } from '../controllers/projectController';
 import boardColumnRoutes from './boardColumnRoutes';
 import slackConfigRoutes from './slackConfigRoutes';
@@ -67,6 +68,9 @@ router.patch('/:id/archive', archiveProject);
 router.patch('/:id/unarchive', unarchiveProject);
 
 // ── Departments ───────────────────────────────────────────────
+// GET    /api/projects/:id/departments
+router.get('/:id/departments', getDepartments);
+
 // POST   /api/projects/:id/departments
 router.post('/:id/departments', linkDepartment);
 

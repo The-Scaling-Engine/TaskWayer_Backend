@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import * as projectService from '../services/projectService';
-import { ProjectMemberRole } from '../repositories/prisma/projectRepository';
+import { ProjectMemberRole, projectRepository } from '../repositories/prisma/projectRepository';
 import { ServiceError } from '../services/departmentService';
 import logger from '../config/logger';
 import { sendError, codeFor } from '../utils/apiResponse';
@@ -214,5 +214,17 @@ export const unlinkDepartment = async (req: AuthRequest, res: Response): Promise
     res.status(200).json({ success: true, message: 'Department unlinked successfully' });
   } catch (error) {
     handleError(res, req, error, 'unlinkDepartment');
+  }
+};
+
+export const getDepartments = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const requesterId = req.user!.id;
+    const projectId = req.params['id'] as string;
+    await projectService.assertProjectReadable(projectId, requesterId);
+    const links = await projectRepository.getLinkedDepartments(projectId);
+    res.status(200).json({ success: true, data: links });
+  } catch (error) {
+    handleError(res, req, error, 'getDepartments');
   }
 };

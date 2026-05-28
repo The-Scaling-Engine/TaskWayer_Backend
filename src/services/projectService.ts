@@ -429,14 +429,20 @@ export const linkDepartment = async (
 ) => {
   await assertProjectManager(projectId, requesterId);
 
-  // Requester must also be OWNER or ADMIN of the target department
-  const deptMembership = await membershipRepo.findByUserAndDepartment(requesterId, departmentId);
-  if (!deptMembership || !['OWNER', 'ADMIN'].includes(deptMembership.role)) {
-    throw new ServiceError(
-      'You must be a Department OWNER or ADMIN to link it to a project',
-      403
-    );
+  // Check 2: Must be DEPT OWNER/ADMIN — OR Org Admin
+  const profile = await profileRepo.findById(requesterId);
+  if (profile?.role !== 'ADMIN') {
+    const deptMembership = await membershipRepo.findByUserAndDepartment(requesterId, departmentId);
+    if (!deptMembership || !['OWNER', 'ADMIN'].includes(deptMembership.role)) {
+      throw new ServiceError(
+        'You must be a Department OWNER or ADMIN (or Org Admin) to link this department',
+        403
+      );
+    }
   }
+
+  const dept = await prisma.department.findUnique({ where: { id: departmentId } });
+  if (!dept) throw new ServiceError('Department not found', 404);
 
   const existing = await projectRepository.getDepartmentLink(projectId, departmentId);
   if (existing) throw new ServiceError('Department is already linked to this project', 409);
@@ -447,7 +453,7 @@ export const linkDepartment = async (
     projectId,
     actorId:  requesterId,
     action:   'PROJECT_DEPARTMENT_LINKED',
-    metadata: { departmentId },
+    metadata: { departmentId, departmentName: dept.name },
   });
 
   return link;
@@ -460,17 +466,29 @@ export const unlinkDepartment = async (
 ) => {
   await assertProjectManager(projectId, requesterId);
 
+  // Check 2: Must be DEPT OWNER/ADMIN — OR Org Admin (mirror linkDepartment)
+  const profile = await profileRepo.findById(requesterId);
+  if (profile?.role !== 'ADMIN') {
+    const deptMembership = await membershipRepo.findByUserAndDepartment(requesterId, departmentId);
+    if (!deptMembership || !['OWNER', 'ADMIN'].includes(deptMembership.role)) {
+      throw new ServiceError(
+        'You must be a Department OWNER or ADMIN (or Org Admin) to unlink this department',
+        403
+      );
+    }
+  }
+
   const existing = await projectRepository.getDepartmentLink(projectId, departmentId);
   if (!existing) throw new ServiceError('Department is not linked to this project', 404);
 
-  const unlinked = await projectRepository.unlinkDepartment(projectId, departmentId);
+  const dept = await prisma.department.findUnique({ where: { id: departmentId } });
+
+  await projectRepository.unlinkDepartment(projectId, departmentId);
 
   await logProjectActivity({
     projectId,
     actorId:  requesterId,
     action:   'PROJECT_DEPARTMENT_UNLINKED',
-    metadata: { departmentId },
+    metadata: { departmentId, departmentName: dept?.name ?? departmentId },
   });
-
-  return unlinked;
 };

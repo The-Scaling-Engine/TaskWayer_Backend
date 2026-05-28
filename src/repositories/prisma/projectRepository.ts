@@ -1,5 +1,6 @@
 import prisma from '../../config/prisma';
 import { Project, ProjectMember, ProjectDepartment, ProjectMemberRole } from '@prisma/client';
+import { ServiceError } from '../../services/departmentService';
 
 // ─── Role helpers (single source of truth) ───────────────────
 
@@ -211,12 +212,33 @@ export class PrismaProjectRepository {
   // ── Departments ───────────────────────────────────────────
 
   async linkDepartment(projectId: string, departmentId: string): Promise<ProjectDepartment> {
-    return prisma.projectDepartment.create({ data: { projectId, departmentId } });
+    try {
+      return await prisma.projectDepartment.create({ data: { projectId, departmentId } });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new ServiceError('Department is already linked to this project', 409);
+      }
+      throw err;
+    }
   }
 
   async unlinkDepartment(projectId: string, departmentId: string): Promise<ProjectDepartment> {
-    return prisma.projectDepartment.delete({
-      where: { projectId_departmentId: { projectId, departmentId } },
+    try {
+      return await prisma.projectDepartment.delete({
+        where: { projectId_departmentId: { projectId, departmentId } },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2025') {
+        throw new ServiceError('Department is not linked to this project', 404);
+      }
+      throw err;
+    }
+  }
+
+  async getLinkedDepartments(projectId: string) {
+    return prisma.projectDepartment.findMany({
+      where: { projectId },
+      include: { department: { select: { id: true, name: true } } },
     });
   }
 
