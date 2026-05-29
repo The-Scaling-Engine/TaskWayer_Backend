@@ -112,6 +112,23 @@ export const deleteDepartment = async (req: AuthRequest, res: Response): Promise
   }
 };
 
+// ─── Linkable Departments ────────────────────────────────────
+
+export const getLinkableDepartments = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const profileId = req.user!.id;
+    const depts = await departmentService.getLinkableDepartments(profileId);
+    res.status(200).json({ success: true, data: depts });
+  } catch (error) {
+    if (error instanceof departmentService.ServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'getLinkableDepartments failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 // ─── Member Management (department RBAC) ─────────────────────
 
 export const listDepartmentMembers = async (req: AuthRequest, res: Response): Promise<void> => {

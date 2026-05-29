@@ -350,6 +350,7 @@ export interface IDepartmentRepository {
   findAll(): Promise<Department[]>;
   findWithMembers(id: string): Promise<DepartmentWithMembers | null>;
   findAllWithCount(page: number, limit: number): Promise<PaginatedDepartmentsResult>;
+  findByUserRole(userId: string, roles: string[]): Promise<{ id: string; name: string }[]>;
   create(data: CreateDepartmentData): Promise<Department>;
   update(id: string, data: UpdateDepartmentData): Promise<Department>;
   delete(id: string): Promise<Department>;

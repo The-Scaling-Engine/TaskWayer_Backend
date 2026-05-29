@@ -45,6 +45,18 @@ export class PrismaDepartmentRepository implements IDepartmentRepository {
     return prisma.department.findMany({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   }
 
+  async findByUserRole(userId: string, roles: string[]): Promise<{ id: string; name: string }[]> {
+    return prisma.department.findMany({
+      where: {
+        memberships: {
+          some: { userId, role: { in: roles as import('@prisma/client').DepartmentMemberRole[] }, status: 'ACTIVE' },
+        },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async findWithMembers(id: string): Promise<DepartmentWithMembers | null> {
     const dept = await prisma.department.findUnique({
       where: { id },

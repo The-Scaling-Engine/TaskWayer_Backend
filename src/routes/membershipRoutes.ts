@@ -14,6 +14,7 @@ import {
   changeMemberRole,
   transferOwnership,
   assignTaskToMember,
+  getLinkableDepartments,
 } from '../controllers/departmentController';
 import {
   sendInvitation,
@@ -41,9 +42,12 @@ const router = Router();
 
 router.use(protect);
 
-// R4 ORDERING GUARD: Any static routes (e.g. /linkable) MUST be registered
-// BEFORE this wildcard middleware, or Express will match them as {departmentId: 'linkable'}.
-// When adding Step D.5 GET /linkable → insert it above this line.
+// GET /api/departments/linkable — returns depts the requester can link to a project
+// MUST be before /:departmentId to avoid being shadowed by attachDepartmentContext
+router.get('/linkable', getLinkableDepartments);
+
+// R4 ORDERING GUARD: /linkable is registered above — do not add any more static
+// routes after this line without placing them before /:departmentId as well.
 // All routes require resolving department context first
 router.use('/:departmentId', attachDepartmentContext);
 

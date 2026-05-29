@@ -191,6 +191,19 @@ export const assignTask = async (
   return task;
 };
 
+// ─── Linkable Departments ────────────────────────────────────
+
+export const getLinkableDepartments = async (
+  profileId: string
+): Promise<{ id: string; name: string }[]> => {
+  const profile = await profileRepo.findById(profileId);
+  if (profile?.role === 'ADMIN') {
+    const all = await departmentRepo.findAll();
+    return all.map(d => ({ id: d.id, name: d.name }));
+  }
+  return departmentRepo.findByUserRole(profileId, ['OWNER', 'ADMIN']);
+};
+
 // ─── Service Error ────────────────────────────────────────────
 
 export class ServiceError extends Error {
