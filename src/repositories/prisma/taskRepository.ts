@@ -12,6 +12,7 @@ import {
 } from '../interfaces';
 import { isUUID } from '../../utils/compatibility';
 import { buildSkip } from '../../utils/pagination';
+import { getProjectIdsByDepartment } from './deptProjectHelpers';
 
 const creatorProfileSelect = {
   mongoId: true,
@@ -169,8 +170,9 @@ export class PrismaTaskRepository implements ITaskRepository {
     limit: number
   ): Promise<PaginatedTasksResult> {
     const skip = buildSkip(page, limit);
+    const projectIds = await getProjectIdsByDepartment(departmentId);
     const where: Prisma.TaskWhereInput = {
-      departmentId,
+      projectId: { in: projectIds },
       OR: [{ profileId }, { assignedTo: profileId }],
     };
 
@@ -198,28 +200,30 @@ export class PrismaTaskRepository implements ITaskRepository {
   ): Promise<Map<string, WorkloadTaskStats>> {
     if (memberIds.length === 0) return new Map();
 
+    const projectIds = await getProjectIdsByDepartment(departmentId);
+
     const now = new Date();
     const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     const [statusGroups, overdueGroups, highPriorityGroups, nearDeadlineGroups] = await prisma.$transaction([
       prisma.task.groupBy({
         by: ['profileId', 'status'],
-        where: { profileId: { in: memberIds }, departmentId },
+        where: { profileId: { in: memberIds }, projectId: { in: projectIds } },
         _count: { id: true },
       }),
       prisma.task.groupBy({
         by: ['profileId'],
-        where: { profileId: { in: memberIds }, departmentId, status: { not: 'done' }, deadline: { lt: now } },
+        where: { profileId: { in: memberIds }, projectId: { in: projectIds }, status: { not: 'done' }, deadline: { lt: now } },
         _count: { id: true },
       }),
       prisma.task.groupBy({
         by: ['profileId'],
-        where: { profileId: { in: memberIds }, departmentId, priority: 'high', status: { not: 'done' } },
+        where: { profileId: { in: memberIds }, projectId: { in: projectIds }, priority: 'high', status: { not: 'done' } },
         _count: { id: true },
       }),
       prisma.task.groupBy({
         by: ['profileId'],
-        where: { profileId: { in: memberIds }, departmentId, status: { not: 'done' }, deadline: { gte: now, lte: sevenDaysLater } },
+        where: { profileId: { in: memberIds }, projectId: { in: projectIds }, status: { not: 'done' }, deadline: { gte: now, lte: sevenDaysLater } },
         _count: { id: true },
       }),
     ]);

@@ -1,4 +1,6 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../../config/prisma';
+import { getProjectIdsByDepartment, getProjectIdsByDepartments } from './deptProjectHelpers';
 
 const DUE_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -270,18 +272,19 @@ export async function checkActiveMembership(
 export async function getDeptSummary(departmentId: string): Promise<DeptSummaryData> {
   const now = new Date();
   const dueSoonCutoff = new Date(now.getTime() + DUE_SOON_MS);
+  const projectIds = await getProjectIdsByDepartment(departmentId);
 
   const [taskGroups, overdueCount, dueSoonCount, memberCount] = await prisma.$transaction([
     prisma.task.groupBy({
       by:    ['status'],
-      where: { departmentId },
+      where: { projectId: { in: projectIds } },
       _count: { status: true },
     }),
     prisma.task.count({
-      where: { departmentId, status: { not: 'done' }, deadline: { lt: now } },
+      where: { projectId: { in: projectIds }, status: { not: 'done' }, deadline: { lt: now } },
     }),
     prisma.task.count({
-      where: { departmentId, status: { not: 'done' }, deadline: { gte: now, lte: dueSoonCutoff } },
+      where: { projectId: { in: projectIds }, status: { not: 'done' }, deadline: { gte: now, lte: dueSoonCutoff } },
     }),
     prisma.departmentMember.count({
       where: { departmentId, status: 'ACTIVE' },
@@ -309,21 +312,31 @@ export async function getDeptCompletionStats(
   endDate:      string,
 ): Promise<DeptCompletionData> {
   const { start, end } = toUTCDateRange(startDate, endDate);
+  const projectIds = await getProjectIdsByDepartment(departmentId);
+
+  if (projectIds.length === 0) {
+    return {
+      period: { startDate, endDate },
+      tasks:  { created: 0, completed: 0, completionRate: 0, averageCompletionTimeMs: null },
+    };
+  }
 
   const [createdCount, completedCount] = await prisma.$transaction([
-    prisma.task.count({ where: { departmentId, createdAt:   { gte: start, lte: end } } }),
-    prisma.task.count({ where: { departmentId, completedAt: { gte: start, lte: end } } }),
+    prisma.task.count({ where: { projectId: { in: projectIds }, createdAt:   { gte: start, lte: end } } }),
+    prisma.task.count({ where: { projectId: { in: projectIds }, completedAt: { gte: start, lte: end } } }),
   ]);
 
-  const avgRaw = await prisma.$queryRaw<AvgResult[]>`
-    SELECT AVG(
-      EXTRACT(EPOCH FROM ("completedAt" - "createdAt")) * 1000
-    ) AS avg_ms
-    FROM "tasks"
-    WHERE "departmentId" = ${departmentId}
-      AND "completedAt" >= ${start}
-      AND "completedAt" <= ${end}
-  `;
+  const avgRaw = await prisma.$queryRaw<AvgResult[]>(
+    Prisma.sql`
+      SELECT AVG(
+        EXTRACT(EPOCH FROM ("completedAt" - "createdAt")) * 1000
+      ) AS avg_ms
+      FROM "tasks"
+      WHERE "projectId" IN (${Prisma.join(projectIds)})
+        AND "completedAt" >= ${start}
+        AND "completedAt" <= ${end}
+    `
+  );
 
   const avgRow = avgRaw[0];
   const averageCompletionTimeMs =
@@ -361,24 +374,27 @@ export async function getAdminDeptList(page: number, limit: number): Promise<Adm
 
   const deptIds = departments.map(d => d.id);
 
-  const [taskGroups, memberGroups] = await prisma.$transaction([
-    prisma.task.groupBy({
-      by:    ['departmentId'],
-      where: { departmentId: { in: deptIds } },
-      _count: { id: true },
-    }),
-    prisma.departmentMember.groupBy({
-      by:    ['departmentId'],
-      where: { departmentId: { in: deptIds }, status: 'ACTIVE' },
-      _count: { id: true },
-    }),
-  ]);
+  // Batch-fetch all dept→project links, then build projectId→taskCount map
+  const deptProjectMap = await getProjectIdsByDepartments(deptIds);
+  const allProjectIds = [...new Set([...deptProjectMap.values()].flat())];
 
-  const taskMap = new Map<string, number>();
-  for (const g of taskGroups) {
-    if (g.departmentId !== null) taskMap.set(g.departmentId, g._count.id);
+  const projectTaskCountMap = new Map<string, number>();
+  if (allProjectIds.length > 0) {
+    const taskGroups = await prisma.task.groupBy({
+      by:    ['projectId'],
+      where: { projectId: { in: allProjectIds } },
+      _count: { id: true },
+    });
+    for (const g of taskGroups) {
+      if (g.projectId !== null) projectTaskCountMap.set(g.projectId, g._count.id);
+    }
   }
 
+  const memberGroups = await prisma.departmentMember.groupBy({
+    by:    ['departmentId'],
+    where: { departmentId: { in: deptIds }, status: 'ACTIVE' },
+    _count: { id: true },
+  });
   const memberMap = new Map<string, number>();
   for (const g of memberGroups) {
     memberMap.set(g.departmentId, g._count.id);
@@ -388,12 +404,16 @@ export async function getAdminDeptList(page: number, limit: number): Promise<Adm
     page,
     limit,
     total,
-    departments: departments.map(d => ({
-      id:      d.id,
-      name:    d.name,
-      tasks:   { total: taskMap.get(d.id) ?? 0 },
-      members: { active: memberMap.get(d.id) ?? 0 },
-    })),
+    departments: departments.map(d => {
+      const projIds = deptProjectMap.get(d.id) ?? [];
+      const taskCount = projIds.reduce((sum, pid) => sum + (projectTaskCountMap.get(pid) ?? 0), 0);
+      return {
+        id:      d.id,
+        name:    d.name,
+        tasks:   { total: taskCount },
+        members: { active: memberMap.get(d.id) ?? 0 },
+      };
+    }),
   };
 }
 
@@ -401,25 +421,29 @@ export async function getAdminDeptSummary(departmentId: string): Promise<AdminDe
   const now = new Date();
   const dueSoonCutoff = new Date(now.getTime() + DUE_SOON_MS);
 
-  const [dept, taskGroups, overdueCount, dueSoonCount, memberCount] = await prisma.$transaction([
+  const [dept, projectIds] = await Promise.all([
     prisma.department.findUnique({ where: { id: departmentId }, select: { name: true } }),
+    getProjectIdsByDepartment(departmentId),
+  ]);
+
+  if (dept === null) return null;
+
+  const [taskGroups, overdueCount, dueSoonCount, memberCount] = await prisma.$transaction([
     prisma.task.groupBy({
       by:    ['status'],
-      where: { departmentId },
+      where: { projectId: { in: projectIds } },
       _count: { status: true },
     }),
     prisma.task.count({
-      where: { departmentId, status: { not: 'done' }, deadline: { lt: now } },
+      where: { projectId: { in: projectIds }, status: { not: 'done' }, deadline: { lt: now } },
     }),
     prisma.task.count({
-      where: { departmentId, status: { not: 'done' }, deadline: { gte: now, lte: dueSoonCutoff } },
+      where: { projectId: { in: projectIds }, status: { not: 'done' }, deadline: { gte: now, lte: dueSoonCutoff } },
     }),
     prisma.departmentMember.count({
       where: { departmentId, status: 'ACTIVE' },
     }),
   ]);
-
-  if (dept === null) return null;
 
   let total = 0, todo = 0, doing = 0, done = 0;
   for (const g of taskGroups) {
