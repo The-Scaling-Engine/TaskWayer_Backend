@@ -20,6 +20,7 @@ import { mapPrismaTaskToResponseDTO } from '../dto/task/taskMapper';
 import { TaskResponseDTO } from '../dto/task/taskResponse.dto';
 import { PaginatedTasksResponseDTO, PaginationDTO } from '../dto/task/pagination.dto';
 import { projectRepository, ProjectMemberRole } from '../repositories/prisma/projectRepository';
+import * as notificationService from './notificationService';
 
 // ─── Input Types ──────────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ export interface UpdateTaskInput {
   recurrenceType?: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | null;
   recurrenceInterval?: number | null;
   recurrenceEndDate?: string | null;
+  assignedTo?: string | null;
 }
 
 export interface GetTasksInput {
@@ -363,15 +365,27 @@ export class TaskService {
 
     const profile = await this.resolveProfile(profileId);
 
-    if (task.isAssigned && task.assignedTo === profile.id) {
-      const nonStatusKeys = (Object.keys(input) as (keyof UpdateTaskInput)[])
-        .filter(k => k !== 'status' && input[k] !== undefined);
-      if (nonStatusKeys.length > 0) {
-        throw new TaskServiceError('Assigned task is read-only. Contact the manager to make changes.', 403);
+    await this.resolveTaskPermission(task, profileId, profile, 'write');
+
+    // ── Assignment field-level permission ──────────────────────
+    if (input.assignedTo !== undefined && task.projectId) {
+      const projectMember = await projectRepository.getMember(task.projectId, profileId);
+      const callerRole = projectMember?.role;
+      if (
+        callerRole !== ProjectMemberRole.MANAGER &&
+        callerRole !== ProjectMemberRole.OWNER &&
+        profile.role !== 'ADMIN'
+      ) {
+        throw new TaskServiceError('Only MANAGER or OWNER can assign tasks', 403);
+      }
+
+      if (input.assignedTo !== null) {
+        const memberIds = await projectRepository.getMemberIds(task.projectId);
+        if (!memberIds.includes(input.assignedTo)) {
+          throw new TaskServiceError('Assignee must be a project member', 400);
+        }
       }
     }
-
-    await this.resolveTaskPermission(task, profileId, profile, 'write');
 
     const data: UpdateTaskData = {};
     if (input.title             !== undefined) data.title             = input.title;
@@ -385,6 +399,19 @@ export class TaskService {
     if (input.recurrenceType     !== undefined) data.recurrenceType     = input.recurrenceType as RecurrenceType | null;
     if (input.recurrenceInterval !== undefined) data.recurrenceInterval = input.recurrenceInterval ?? null;
     if (input.recurrenceEndDate  !== undefined) data.recurrenceEndDate  = input.recurrenceEndDate ? new Date(input.recurrenceEndDate) : null;
+
+    // Atomic assignment update — always set all three fields together
+    if (input.assignedTo !== undefined) {
+      if (input.assignedTo !== null) {
+        data.assignedTo  = input.assignedTo;
+        data.assignedBy  = profileId;
+        data.isAssigned  = true;
+      } else {
+        data.assignedTo  = null;
+        data.assignedBy  = null;
+        data.isAssigned  = false;
+      }
+    }
 
     // completedAt is server-managed only — client cannot inject this value.
     // Transition: non-done → done sets it once; done → non-done clears it;
@@ -409,6 +436,18 @@ export class TaskService {
       updatedFields: Object.keys(data),
       updatedAt: updated.updatedAt,
     });
+
+    // Notify new assignee (fire-and-forget)
+    if (data.assignedTo && data.isAssigned && task.projectId) {
+      void notificationService.notifyTaskAssigned({
+        assigneeId: data.assignedTo,
+        actorId: profileId,
+        actorName: profile.name,
+        taskId: task.id,
+        taskTitle: task.title,
+        projectId: task.projectId,
+      }).catch(err => logger.error({ err, context: 'notifyTaskAssigned', taskId: task.id }, 'Fire-and-forget failed'));
+    }
 
     return mapPrismaTaskToResponseDTO({ ...updated, profile }, { name: profile.name, email: profile.email, avatar: profile.avatar });
   }
@@ -485,10 +524,6 @@ export class TaskService {
     }
 
     const profile = await this.resolveProfile(profileId);
-
-    if (task.isAssigned && task.assignedTo === profile.id) {
-      throw new TaskServiceError('Assigned task is read-only. Contact the manager to make changes.', 403);
-    }
 
     await this.resolveTaskPermission(task, profileId, profile, 'delete');
 

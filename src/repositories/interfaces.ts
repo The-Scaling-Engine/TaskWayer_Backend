@@ -241,6 +241,9 @@ export interface UpdateTaskData {
   recurrenceType?: RecurrenceType | null;
   recurrenceInterval?: number | null;
   recurrenceEndDate?: Date | null;
+  assignedTo?: string | null;
+  assignedBy?: string | null;
+  isAssigned?: boolean;
 }
 
 export interface TaskFilterOptions {

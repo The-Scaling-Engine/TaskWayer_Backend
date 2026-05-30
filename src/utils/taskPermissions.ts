@@ -46,8 +46,18 @@ export async function resolveTaskPermission(
       throw new TaskPermissionError('VIEWER cannot modify tasks', 403);
     }
 
+    if (level === 'delete') {
+      if (
+        projectMember.role !== ProjectMemberRole.MANAGER &&
+        projectMember.role !== ProjectMemberRole.OWNER
+      ) {
+        throw new TaskPermissionError('Only MANAGER or OWNER can delete tasks', 403);
+      }
+      return;
+    }
+
     if (
-      level !== 'read' &&
+      level === 'write' &&
       projectMember.role === ProjectMemberRole.MEMBER &&
       task.profileId !== profileId &&
       task.assignedTo !== profileId

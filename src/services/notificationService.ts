@@ -133,6 +133,35 @@ export const markAllRead = async (userId: string): Promise<number> => {
   return notificationRepo.markAllRead(userId);
 };
 
+// ─── Task assigned notification ──────────────────────────────
+
+export const notifyTaskAssigned = async (params: {
+  assigneeId: string;
+  actorId: string;
+  actorName: string | null;
+  taskId: string;
+  taskTitle: string;
+  projectId: string;
+}): Promise<void> => {
+  const { assigneeId, actorId, actorName, taskId, taskTitle, projectId } = params;
+  if (assigneeId === actorId) return;
+
+  const actor = actorName ?? 'Someone';
+  try {
+    await createNotification({
+      userId: assigneeId,
+      type: 'TASK_ASSIGNED',
+      title: `${actor} assigned you to "${taskTitle}"`,
+      message: taskTitle,
+      payload: { taskId, projectId, actorId },
+      entityType: 'task',
+      entityId: taskId,
+    });
+  } catch (err) {
+    logger.error({ err, context: 'notifyTaskAssigned', taskId }, 'Task assigned notification failed');
+  }
+};
+
 // ─── Note added notification ──────────────────────────────────
 
 export const notifyNoteAdded = async (params: {

@@ -36,6 +36,7 @@ export const updateTaskSchema = z.object({
   recurrenceType:     z.enum(['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']).optional().nullable(),
   recurrenceInterval: z.coerce.number().int().positive().max(365).nullable().optional(),
   recurrenceEndDate:  z.string().datetime({ offset: true }).nullable().optional(),
+  assignedTo:         z.string().uuid('Invalid assignedTo').nullable().optional(),
 });
 export type UpdateTaskBody = z.infer<typeof updateTaskSchema>;
 
