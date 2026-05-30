@@ -40,6 +40,7 @@ export const processMentions = async (
   taskId: string,
   commentId: string,
   departmentId: string | null,
+  projectId: string | null,
   actorId: string,
   actorName: string | null,
   taskTitle: string
@@ -62,7 +63,7 @@ export const processMentions = async (
         type: 'MENTIONED_IN_COMMENT',
         title: `${actor} mentioned you in "${taskTitle}"`,
         message: preview,
-        payload: { taskId, commentId, departmentId, actorId },
+        payload: { taskId, commentId, departmentId, projectId, actorId },
         entityType: 'comment',
         entityId: commentId,
       });
@@ -81,6 +82,7 @@ export const notifyCommentAdded = async (
   taskId: string,
   commentId: string,
   departmentId: string | null,
+  projectId: string | null,
   taskTitle: string,
   commentContent: string
 ): Promise<void> => {
@@ -95,7 +97,7 @@ export const notifyCommentAdded = async (
       type: 'COMMENT_ADDED',
       title: `${actor} commented on "${taskTitle}"`,
       message: preview,
-      payload: { taskId, commentId, departmentId, actorId },
+      payload: { taskId, commentId, departmentId, projectId, actorId },
       entityType: 'comment',
       entityId: commentId,
     });
