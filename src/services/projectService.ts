@@ -77,9 +77,10 @@ export async function assertProjectMember(projectId: string, profileId: string) 
   return member;
 }
 
-export async function assertProjectManager(projectId: string, profileId: string) {
+export async function assertProjectManager(projectId: string, profileId: string, allowArchived = false) {
   const project = await projectRepository.findById(projectId, true);
   if (!project) throw new ServiceError('Project not found', 404);
+  if (!allowArchived && project.archivedAt) throw new ServiceError('Project is archived', 400);
   const member = await projectRepository.getMember(projectId, profileId);
   if (!member || !['OWNER', 'MANAGER'].includes(member.role)) {
     throw new ServiceError('This action requires project OWNER or MANAGER role', 403);
@@ -186,7 +187,7 @@ export const deleteProject = async (id: string, requesterId: string) => {
 };
 
 export const archiveProject = async (id: string, requesterId: string) => {
-  await assertProjectManager(id, requesterId);
+  await assertProjectManager(id, requesterId, true);
   const project = await projectRepository.findById(id, true); // include archived to detect duplicate
   if (!project) throw new ServiceError('Project not found', 404);
   if (project.archivedAt) throw new ServiceError('Project is already archived', 400);
@@ -201,7 +202,7 @@ export const archiveProject = async (id: string, requesterId: string) => {
 };
 
 export const unarchiveProject = async (id: string, requesterId: string) => {
-  await assertProjectManager(id, requesterId);
+  await assertProjectManager(id, requesterId, true);
   const project = await projectRepository.findById(id, true);
   if (!project) throw new ServiceError('Project not found', 404);
   if (!project.archivedAt) throw new ServiceError('Project is not archived', 400);
