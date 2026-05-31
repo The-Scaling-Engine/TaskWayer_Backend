@@ -124,7 +124,7 @@ export function initSocket(httpServer: HttpServer): SocketServer {
 
         const task = await prisma.task.findUnique({
           where: { id: taskId },
-          select: { id: true, profileId: true, departmentId: true },
+          select: { id: true, profileId: true },
         });
 
         if (!task) return;
@@ -137,22 +137,6 @@ export function initSocket(httpServer: HttpServer): SocketServer {
         if (task.profileId === user.prismaId) {
           void socket.join(`task:${taskId}`);
           return;
-        }
-
-        if (task.departmentId) {
-          const membership = await prisma.departmentMember.findUnique({
-            where: {
-              userId_departmentId: {
-                userId:       user.prismaId,
-                departmentId: task.departmentId,
-              },
-            },
-            select: { status: true },
-          });
-
-          if (membership?.status === 'ACTIVE') {
-            void socket.join(`task:${taskId}`);
-          }
         }
       } catch (err) {
         logger.error({ err, userId: user.prismaId, taskId }, 'Socket join:task failed');

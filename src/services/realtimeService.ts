@@ -75,7 +75,6 @@ export function emitNotification(userId: string, payload: NotificationPayload): 
 
 export interface TaskUpdatedPayload {
   taskId: string;
-  departmentId: string | null;
   updatedFields: string[];
   updatedAt: Date;
 }

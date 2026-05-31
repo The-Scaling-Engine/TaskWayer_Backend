@@ -32,7 +32,6 @@ export interface CreateTaskInput {
   tags?: string[];
   deadline?: string | null;
   scheduledAt?: string | null;
-  departmentId?: string;
   projectId?: string;
   columnId?: string;
   assignedTo?: string;
@@ -76,7 +75,6 @@ export interface GetTasksInput {
   personal?:       boolean;
   assignedByMe?:   boolean;
   assignedToMe?:   boolean;
-  departmentId?:   string;
   projectId?:      string;
 }
 
@@ -154,21 +152,6 @@ export class TaskService {
       }
     }
 
-    if (input.departmentId) {
-      const membership = await this.membershipRepo.findByUserAndDepartment(
-        profileId,
-        input.departmentId
-      );
-
-      if (!membership || membership.status !== 'ACTIVE') {
-        throw new TaskServiceError('You are not a member of this department', 403);
-      }
-
-      if (membership.role === 'VIEWER') {
-        throw new TaskServiceError('VIEWER cannot create tasks', 403);
-      }
-    }
-
     if (input.isRecurring) {
       if (!input.recurrenceType) {
         throw new TaskServiceError('recurrenceType is required for recurring tasks', 400);
@@ -190,10 +173,9 @@ export class TaskService {
       profileId:         profile.id,
       scheduledAt:       input.scheduledAt ? new Date(input.scheduledAt) : new Date(),
       ...(input.deadline        != null && { deadline:        new Date(input.deadline) }),
-      ...(input.departmentId    != null && { departmentId:    input.departmentId }),
       ...(input.projectId       != null && { projectId:       input.projectId }),
       ...(input.columnId        != null && { columnId:        input.columnId }),
-      ...(input.assignedTo      != null && { assignedTo: input.assignedTo, assignedBy: profile.id, isAssigned: true }),
+      ...(input.assignedTo      != null && { assignedTo: input.assignedTo, assignedBy: profile.id }),
       ...(completedNow !== undefined    && { completedAt:     completedNow }),
       isRecurring:       input.isRecurring ?? false,
       ...(input.recurrenceType     != null && { recurrenceType:     input.recurrenceType as RecurrenceType }),
@@ -227,7 +209,6 @@ export class TaskService {
           profileId:         task.profileId,
           scheduledAt:       scheduledDate,
           ...(deadline !== undefined && { deadline }),
-          ...(task.departmentId    && { departmentId: task.departmentId }),
           ...(task.projectId      && { projectId:    task.projectId }),
           isRecurring:         true,
           recurrenceType:      task.recurrenceType!,
@@ -290,8 +271,6 @@ export class TaskService {
     if (query.personal)       filter.personal       = query.personal;
     if (query.assignedByMe)   filter.assignedByMe   = query.assignedByMe;
     if (query.assignedToMe)   filter.assignedToMe   = query.assignedToMe;
-    if (query.departmentId)   filter.departmentId   = query.departmentId;
-
     if (query.projectId) {
       const projectMember = await projectRepository.getMember(query.projectId, profileId);
       if (!projectMember && !isGlobalAdmin) {
@@ -371,12 +350,19 @@ export class TaskService {
     if (input.assignedTo !== undefined && task.projectId) {
       const projectMember = await projectRepository.getMember(task.projectId, profileId);
       const callerRole = projectMember?.role;
-      if (
-        callerRole !== ProjectMemberRole.MANAGER &&
-        callerRole !== ProjectMemberRole.OWNER &&
-        profile.role !== 'ADMIN'
-      ) {
-        throw new TaskServiceError('Only MANAGER or OWNER can assign tasks', 403);
+      const isManagerOrOwner = callerRole === ProjectMemberRole.MANAGER || callerRole === ProjectMemberRole.OWNER;
+      const isOrgAdmin = profile.role === 'ADMIN';
+      const isMember = callerRole === ProjectMemberRole.MEMBER;
+
+      if (!isManagerOrOwner && !isOrgAdmin) {
+        if (isMember) {
+          // MEMBER can only self-assign or unassign
+          if (input.assignedTo !== null && input.assignedTo !== profileId) {
+            throw new TaskServiceError('MEMBER can only assign to themselves or leave unassigned', 403);
+          }
+        } else {
+          throw new TaskServiceError('Only MANAGER or OWNER can assign tasks', 403);
+        }
       }
 
       if (input.assignedTo !== null) {
@@ -405,11 +391,9 @@ export class TaskService {
       if (input.assignedTo !== null) {
         data.assignedTo  = input.assignedTo;
         data.assignedBy  = profileId;
-        data.isAssigned  = true;
       } else {
         data.assignedTo  = null;
         data.assignedBy  = null;
-        data.isAssigned  = false;
       }
     }
 
@@ -432,13 +416,12 @@ export class TaskService {
     // Emit realtime to all subscribers of this task room
     realtimeService.emitTaskUpdated(task.id, {
       taskId: task.id,
-      departmentId: task.departmentId,
       updatedFields: Object.keys(data),
       updatedAt: updated.updatedAt,
     });
 
     // Notify new assignee (fire-and-forget)
-    if (data.assignedTo && data.isAssigned && task.projectId) {
+    if (data.assignedTo && task.projectId) {
       void notificationService.notifyTaskAssigned({
         assigneeId: data.assignedTo,
         actorId: profileId,
@@ -529,15 +512,5 @@ export class TaskService {
 
     await this.taskRepo.delete(task.id);
 
-    if (task.departmentId) {
-      void activityLogRepo.create({
-        actorUserId: profileId,
-        departmentId: task.departmentId,
-        entityType: 'task',
-        entityId: task.id,
-        action: 'task.deleted',
-        metadata: { title: task.title, ownerId: task.profileId },
-      });
-    }
   }
 }

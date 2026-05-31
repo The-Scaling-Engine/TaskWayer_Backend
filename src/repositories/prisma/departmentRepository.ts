@@ -69,7 +69,7 @@ export class PrismaDepartmentRepository implements IDepartmentRepository {
           },
           orderBy: membershipOrderBy,
         },
-        _count: { select: { memberships: true, tasks: true } },
+        _count: { select: { memberships: true } },
       },
     });
 
@@ -94,7 +94,7 @@ export class PrismaDepartmentRepository implements IDepartmentRepository {
             },
             orderBy: membershipOrderBy,
           },
-          _count: { select: { memberships: true, tasks: true } },
+          _count: { select: { memberships: true } },
         },
       }),
       prisma.department.count(),
@@ -141,7 +141,7 @@ export class PrismaDepartmentRepository implements IDepartmentRepository {
         invitedBy: string | null;
         member: { id: string; email: string; name: string | null; username: string | null; avatar: string | null; jobTitle: string | null };
       }>;
-      _count: { memberships: number; tasks: number };
+      _count: { memberships: number };
     },
     memberCap: number
   ): DepartmentWithMembers {

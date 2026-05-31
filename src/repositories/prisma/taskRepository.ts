@@ -113,12 +113,7 @@ export class PrismaTaskRepository implements ITaskRepository {
     }
 
     if (filter.personal) {
-      additionalFilters.departmentId = null;
       additionalFilters.projectId = null;
-    }
-
-    if (filter.departmentId) {
-      additionalFilters.departmentId = filter.departmentId;
     }
 
     if (filter.projectId) {

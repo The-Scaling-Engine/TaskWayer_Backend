@@ -17,6 +17,7 @@ import {
   linkDepartment,
   unlinkDepartment,
   getDepartments,
+  importDepartmentMembers,
 } from '../controllers/projectController';
 import boardColumnRoutes from './boardColumnRoutes';
 import slackConfigRoutes from './slackConfigRoutes';
@@ -44,6 +45,9 @@ router.delete('/:id', deleteProject);
 // ── Members ───────────────────────────────────────────────────
 // GET    /api/projects/:id/members
 router.get('/:id/members', getMembers);
+
+// POST   /api/projects/:id/members/import-department  (must be before /:id/members)
+router.post('/:id/members/import-department', importDepartmentMembers);
 
 // POST   /api/projects/:id/members
 router.post('/:id/members', addMember);

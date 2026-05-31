@@ -19,8 +19,7 @@ export class TaskPermissionError extends Error {
  * Permission priority:
  *  1. Global admin — always allowed
  *  2. Project task (task.projectId set) — uses project membership
- *  3. Department task (task.departmentId set) — uses dept membership (legacy)
- *  4. Personal task — owner only
+ *  3. Personal task — owner only
  */
 export async function resolveTaskPermission(
   task: Task,
@@ -62,28 +61,6 @@ export async function resolveTaskPermission(
       task.profileId !== profileId &&
       task.assignedTo !== profileId
     ) {
-      throw new TaskPermissionError('MEMBER can only modify their own tasks', 403);
-    }
-
-    return;
-  }
-
-  // ── Department-scoped permission (legacy) ─────────────────
-  if (task.departmentId) {
-    const role = await membershipRepo.getActiveMemberRole(profileId, task.departmentId);
-
-    if (!role) {
-      if (task.profileId !== profileId) {
-        throw new TaskPermissionError('Not authorized to access this task', 403);
-      }
-      return;
-    }
-
-    if (level !== 'read' && role === 'VIEWER') {
-      throw new TaskPermissionError('VIEWER cannot modify tasks', 403);
-    }
-
-    if (level !== 'read' && role === 'MEMBER' && task.profileId !== profileId && task.assignedTo !== profileId) {
       throw new TaskPermissionError('MEMBER can only modify their own tasks', 403);
     }
 

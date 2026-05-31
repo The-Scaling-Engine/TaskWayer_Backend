@@ -228,3 +228,22 @@ export const getDepartments = async (req: AuthRequest, res: Response): Promise<v
     handleError(res, req, error, 'getDepartments');
   }
 };
+
+export const importDepartmentMembers = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const requesterId = req.user!.id;
+    const projectId = req.params['id'] as string;
+    const { departmentId } = req.body as { departmentId: string };
+    if (!departmentId) {
+      sendError(res, req, 400, 'VALIDATION_ERROR', 'departmentId is required');
+      return;
+    }
+    const result = await projectService.importDepartmentMembers(projectId, requesterId, departmentId);
+    const message = result.added > 0
+      ? `${result.added} member(s) imported successfully`
+      : 'All department members are already in this project';
+    res.status(200).json({ success: true, message, data: result });
+  } catch (error) {
+    handleError(res, req, error, 'importDepartmentMembers');
+  }
+};

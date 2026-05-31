@@ -78,7 +78,6 @@ export interface DepartmentWithMembers {
   hasMoreMembers: boolean;
   _count?: {
     memberships: number;
-    tasks: number;
   };
 }
 
@@ -212,7 +211,6 @@ export interface CreateTaskData {
   scheduledAt?: Date | null;
   completedAt?: Date;
   profileId: string;
-  departmentId?: string;
   projectId?: string;
   columnId?: string;
   mongoId?: string;
@@ -221,7 +219,6 @@ export interface CreateTaskData {
   recurrenceInterval?: number | null;
   recurrenceEndDate?: Date | null;
   recurrenceParentId?: string;
-  isAssigned?: boolean;
   assignedTo?: string;
   assignedBy?: string;
 }
@@ -235,7 +232,6 @@ export interface UpdateTaskData {
   deadline?: Date | null;
   scheduledAt?: Date | null;
   completedAt?: Date | null;
-  departmentId?: string | null;
   columnId?: string | null;
   isRecurring?: boolean;
   recurrenceType?: RecurrenceType | null;
@@ -243,7 +239,6 @@ export interface UpdateTaskData {
   recurrenceEndDate?: Date | null;
   assignedTo?: string | null;
   assignedBy?: string | null;
-  isAssigned?: boolean;
 }
 
 export interface TaskFilterOptions {
@@ -260,7 +255,6 @@ export interface TaskFilterOptions {
   personal?:       boolean;
   assignedByMe?:   boolean;
   assignedToMe?:   boolean;
-  departmentId?:   string;
   projectId?:      string;
 }
 

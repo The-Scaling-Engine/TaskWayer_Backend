@@ -51,14 +51,6 @@ async function assertCommentModAccess(
     return;
   }
 
-  // Dept ADMIN/OWNER can moderate all comments
-  if (task.departmentId) {
-    const membership = await membershipRepo.findByUserAndDepartment(profileId, task.departmentId);
-    if (membership?.status === 'ACTIVE' && (membership.role === 'OWNER' || membership.role === 'ADMIN')) {
-      return;
-    }
-  }
-
   throw new ServiceError('Not authorized to modify this comment', 403);
 }
 
@@ -127,27 +119,26 @@ export const createComment = async (
 
   // Notify task owner (fire-and-forget)
   void notificationService.notifyCommentAdded(
-    task.profileId, profileId, profile.name, taskId, comment.id, task.departmentId, task.projectId ?? null,
+    task.profileId, profileId, profile.name, taskId, comment.id, null, task.projectId ?? null,
     task.title, content
   ).catch(err => logger.error({ err, context: 'notifyCommentAdded', taskId, commentId: comment.id }, 'Fire-and-forget failed'));
 
-  // For assigned tasks: also notify the assignee if they're not the commenter and not the same as profileId
-  if (task.isAssigned && task.assignedTo && task.assignedTo !== profileId && task.assignedTo !== task.profileId) {
+  // Notify the assignee if they're not the commenter and not the task owner
+  if (task.assignedTo && task.assignedTo !== profileId && task.assignedTo !== task.profileId) {
     void notificationService.notifyCommentAdded(
-      task.assignedTo, profileId, profile.name, taskId, comment.id, task.departmentId, task.projectId ?? null,
+      task.assignedTo, profileId, profile.name, taskId, comment.id, null, task.projectId ?? null,
       task.title, content
     ).catch(err => logger.error({ err, context: 'notifyCommentAdded:assignee', taskId, commentId: comment.id }, 'Fire-and-forget failed'));
   }
 
   // Parse mentions (fire-and-forget)
   void notificationService.processMentions(
-    content, taskId, comment.id, task.departmentId, task.projectId ?? null, profileId, profile.name, task.title
+    content, taskId, comment.id, null, task.projectId ?? null, profileId, profile.name, task.title
   ).catch(err => logger.error({ err, context: 'processMentions', taskId, commentId: comment.id }, 'Fire-and-forget failed'));
 
   // Activity log (fire-and-forget)
   void activityLogRepo.create({
     actorUserId: profileId,
-    ...(task.departmentId != null && { departmentId: task.departmentId }),
     entityType: 'comment',
     entityId: comment.id,
     action: 'comment.created',
@@ -187,7 +178,6 @@ export const updateComment = async (
 
   void activityLogRepo.create({
     actorUserId: profileId,
-    ...(task.departmentId != null && { departmentId: task.departmentId }),
     entityType: 'comment',
     entityId: commentId,
     action: 'comment.updated',
@@ -225,7 +215,6 @@ export const deleteComment = async (
 
   void activityLogRepo.create({
     actorUserId: profileId,
-    ...(task.departmentId != null && { departmentId: task.departmentId }),
     entityType: 'comment',
     entityId: commentId,
     action: 'comment.deleted',

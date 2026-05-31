@@ -124,7 +124,6 @@ model Department {
   description  String?
   memberships  DepartmentMember[]
   invitations  DepartmentInvitation[]
-  tasks        Task[]
   activityLogs ActivityLog[]
   projects     ProjectDepartment[]
   createdAt    DateTime  @default(now())
@@ -206,8 +205,6 @@ model Task {
   mongoId             String?         @unique
   profileId           String
   profile             Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  departmentId        String?
-  department          Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   projectId           String?
   project             Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   columnId            String?
@@ -216,7 +213,6 @@ model Task {
   notes               TaskNote[]
   timeSessions        TimeTrackingSession[]
   completedAt         DateTime?
-  isAssigned          Boolean         @default(false)
   assignedTo          String?
   assignedBy          String?
   isRecurring         Boolean         @default(false)
@@ -229,7 +225,6 @@ model Task {
   updatedAt           DateTime        @updatedAt
 
   @@index([profileId])
-  @@index([departmentId])
   @@index([status])
   @@index([title])
   @@index([createdAt])
@@ -237,9 +232,7 @@ model Task {
   @@index([scheduledAt])
   @@index([profileId, scheduledAt])
   @@index([profileId, status])
-  @@index([departmentId, status])
   @@index([profileId, completedAt])
-  @@index([departmentId, completedAt])
   @@index([completedAt])
   @@index([recurrenceParentId])
   @@index([projectId])

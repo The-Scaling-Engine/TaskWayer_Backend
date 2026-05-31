@@ -8,9 +8,9 @@ export const createTaskSchema = z.object({
   tags:              z.array(z.string().trim()).optional(),
   deadline:          z.string().datetime({ offset: true }).nullable().optional(),
   scheduledAt:       z.string().datetime({ offset: true }).nullable().optional(),
-  departmentId:      z.string().uuid('Invalid departmentId').optional(),
   projectId:         z.string().uuid('Invalid projectId').optional(),
-  assignedTo:        z.string().uuid('Invalid assignedTo').optional(),
+  columnId:          z.string().uuid('Invalid columnId').nullable().optional(),
+  assignedTo:        z.string().uuid('Invalid assignedTo').nullable().optional(),
   isRecurring:        z.boolean().default(false),
   recurrenceType:     z.enum(['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']).optional().nullable(),
   recurrenceInterval: z.coerce.number().int().positive().max(365).nullable().optional(),
@@ -32,6 +32,7 @@ export const updateTaskSchema = z.object({
   tags:              z.array(z.string().trim()).optional(),
   deadline:          z.string().datetime({ offset: true }).nullable().optional(),
   scheduledAt:       z.string().datetime({ offset: true }).nullable().optional(),
+  columnId:          z.string().uuid('Invalid columnId').nullable().optional(),
   isRecurring:        z.boolean().optional(),
   recurrenceType:     z.enum(['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']).optional().nullable(),
   recurrenceInterval: z.coerce.number().int().positive().max(365).nullable().optional(),
@@ -66,7 +67,6 @@ export const getTasksQuerySchema = z.object({
   personal:       z.coerce.boolean().optional(),
   assignedByMe:   z.coerce.boolean().optional(),
   assignedToMe:   z.coerce.boolean().optional(),
-  departmentId:   z.string().uuid().optional(),
   projectId:      z.string().uuid().optional(),
 });
 export type GetTasksQuery = z.infer<typeof getTasksQuerySchema>;

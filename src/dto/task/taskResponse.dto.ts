@@ -20,9 +20,8 @@ export interface TaskResponseDTO {
   deadline: Date | null;
   scheduledAt: Date | null;
   completedAt: Date | null;
-  departmentId: string | null;
   projectId: string | null;
-  isAssigned: boolean;
+  columnId: string | null;
   assignedTo: string | null;
   assignedBy: string | null;
   userId: string;

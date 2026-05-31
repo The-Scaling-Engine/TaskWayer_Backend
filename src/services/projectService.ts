@@ -493,3 +493,41 @@ export const unlinkDepartment = async (
     metadata: { departmentId, departmentName: dept?.name ?? departmentId },
   });
 };
+
+export const importDepartmentMembers = async (
+  projectId: string,
+  requesterId: string,
+  departmentId: string
+): Promise<{ added: number }> => {
+  await assertProjectManager(projectId, requesterId);
+
+  const link = await projectRepository.getDepartmentLink(projectId, departmentId);
+  if (!link) throw new ServiceError('Department is not linked to this project', 400);
+
+  const deptMembers = await prisma.departmentMember.findMany({
+    where: { departmentId, status: 'ACTIVE' },
+    select: { userId: true },
+  });
+  if (deptMembers.length === 0) return { added: 0 };
+
+  const existingIds = await projectRepository.getMemberIds(projectId);
+  const existingSet = new Set(existingIds);
+
+  const toAdd = deptMembers
+    .map(m => m.userId)
+    .filter(id => !existingSet.has(id))
+    .map(profileId => ({ projectId, profileId, role: ProjectMemberRole.MEMBER }));
+
+  if (toAdd.length === 0) return { added: 0 };
+
+  await prisma.projectMember.createMany({ data: toAdd, skipDuplicates: true });
+
+  await logProjectActivity({
+    projectId,
+    actorId:  requesterId,
+    action:   'PROJECT_MEMBER_ADDED',
+    metadata: { bulk: true, departmentId, count: toAdd.length },
+  });
+
+  return { added: toAdd.length };
+};
