@@ -359,6 +359,7 @@ export interface IMembershipRepository {
   getActiveMemberRole(userId: string, departmentId: string): Promise<DepartmentMemberRole | null>;
   findActiveMembersByDepartment(departmentId: string, page: number, limit: number): Promise<PaginatedMembersResult>;
   findUserMemberships(userId: string): Promise<(DepartmentMember & { department: Department })[]>;
+  findActiveMembershipsByUser(userId: string): Promise<Array<DepartmentMember & { department: { id: string; name: string } }>>;
   create(data: CreateMembershipData): Promise<DepartmentMember>;
   update(id: string, data: UpdateMembershipData): Promise<DepartmentMember>;
   delete(id: string): Promise<void>;

@@ -80,15 +80,6 @@ export const addMember = async (
   const targetProfile = await profileRepo.findById(targetUserId);
   if (!targetProfile) throw new ServiceError('User not found', 404);
 
-  // C1: pre-check for 1-active-dept-per-user rule (defense-in-depth before DB partial index)
-  const activeElsewhere = await membershipRepo.findActiveMembershipByUser(targetUserId);
-  if (activeElsewhere && activeElsewhere.departmentId !== departmentId) {
-    throw new ServiceError(
-      `User is already an active member of "${activeElsewhere.department.name}". A user can only belong to one active department.`,
-      409
-    );
-  }
-
   const membership = await prisma.$transaction(async (tx) => {
     const existing = await tx.departmentMember.findUnique({
       where: { userId_departmentId: { userId: targetUserId, departmentId } },
@@ -146,19 +137,29 @@ export const adminAddMember = async (
 
   if (role === 'OWNER') throw new ServiceError('Cannot assign OWNER via admin route. Use transfer ownership.', 400);
 
-  const existing = await membershipRepo.findByUserAndDepartment(targetUserId, departmentId);
-  if (existing) {
-    if (existing.status === 'ACTIVE') {
-      throw new ServiceError('User is already an active member of this department', 409);
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.departmentMember.findUnique({
+      where: { userId_departmentId: { userId: targetUserId, departmentId } },
+    });
+    if (existing) {
+      if (existing.status === 'ACTIVE') {
+        throw new ServiceError('User is already an active member of this department', 409);
+      }
+      return tx.departmentMember.update({
+        where: { id: existing.id },
+        data: { role, status: 'ACTIVE' },
+      });
     }
-    return membershipRepo.update(existing.id, { role, status: 'ACTIVE' });
-  }
-
-  const createData = { userId: targetUserId, departmentId, role };
-  if (actorId !== undefined) {
-    return membershipRepo.create({ ...createData, invitedBy: actorId });
-  }
-  return membershipRepo.create(createData);
+    return tx.departmentMember.create({
+      data: {
+        userId: targetUserId,
+        departmentId,
+        role,
+        status: 'ACTIVE',
+        invitedBy: actorId ?? null,
+      },
+    });
+  }).catch((err: unknown) => mapPrismaConflict(err, 'User is already a member of this department'));
 };
 
 // ─── Remove Member ────────────────────────────────────────────
