@@ -385,6 +385,7 @@ export interface ITaskRepository {
   getWorkloadByMemberIds(memberIds: string[], departmentId: string): Promise<Map<string, WorkloadTaskStats>>;
   create(data: CreateTaskData): Promise<Task>;
   createMany(data: CreateTaskData[]): Promise<void>;
+  bulkCreate(data: CreateTaskData[]): Promise<Task[]>;
   update(id: string, data: UpdateTaskData): Promise<Task>;
   delete(id: string): Promise<void>;
   deleteManyByParentId(parentId: string): Promise<number>;

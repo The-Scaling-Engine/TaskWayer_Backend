@@ -2,14 +2,17 @@ import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
 import { taskWriteLimiter } from '../middleware/rateLimiter';
-import { createTask, getTasks, updateTask, deleteTask, getTaskStats, cancelRecurrence, cancelFromDate } from '../controllers/taskController';
-import { createTaskSchema, updateTaskSchema, getTasksQuerySchema, cancelRecurrenceSchema, cancelFromDateSchema } from '../schemas/taskSchemas';
+import { createTask, getTasks, updateTask, deleteTask, getTaskStats, cancelRecurrence, cancelFromDate, bulkCreateTasks } from '../controllers/taskController';
+import { createTaskSchema, updateTaskSchema, getTasksQuerySchema, cancelRecurrenceSchema, cancelFromDateSchema, bulkCreateSchema } from '../schemas/taskSchemas';
 import { uuidParamSchema } from '../schemas/commonSchemas';
 
 const router = Router();
 
 // All task routes are protected
 router.use(protect);
+
+// POST /api/tasks/bulk  — must be BEFORE /:id routes
+router.post('/bulk', taskWriteLimiter, validateRequest({ body: bulkCreateSchema }), bulkCreateTasks);
 
 // POST /api/tasks
 router.post('/', taskWriteLimiter, validateRequest({ body: createTaskSchema }), createTask);

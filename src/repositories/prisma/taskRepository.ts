@@ -269,6 +269,11 @@ export class PrismaTaskRepository implements ITaskRepository {
     await prisma.task.createMany({ data });
   }
 
+  async bulkCreate(data: CreateTaskData[]): Promise<Task[]> {
+    if (data.length === 0) return [];
+    return prisma.task.createManyAndReturn({ data });
+  }
+
   async update(id: string, data: UpdateTaskData): Promise<Task> {
     return prisma.task.update({ where: { id }, data });
   }

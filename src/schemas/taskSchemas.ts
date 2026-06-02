@@ -49,6 +49,19 @@ export const cancelFromDateSchema = z.object({
   fromDate: z.string().date('fromDate must be a valid date (YYYY-MM-DD)'),
 });
 
+export const bulkCreateSchema = z.object({
+  projectId: z.string().uuid('Invalid projectId').optional(),
+  columnId:  z.string().uuid('Invalid columnId').nullable().optional(),
+  priority:  z.enum(['low', 'medium', 'high']).optional(),
+  tasks: z.array(
+    z.object({
+      title:    z.string().max(255),
+      priority: z.enum(['low', 'medium', 'high']).optional(),
+    })
+  ).min(1, 'At least one task is required').max(50, 'Max 50 tasks per request'),
+});
+export type BulkCreateBody = z.infer<typeof bulkCreateSchema>;
+
 export const getTasksQuerySchema = z.object({
   page:         z.coerce.number().int().positive().max(1000).default(1),
   limit:        z.coerce.number().int().positive().max(100).default(10),

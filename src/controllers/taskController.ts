@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { TaskService, TaskServiceError } from '../services/taskService';
-import type { CreateTaskInput, UpdateTaskInput, GetTasksInput } from '../services/taskService';
+import type { CreateTaskInput, UpdateTaskInput, GetTasksInput, BulkCreateInput } from '../services/taskService';
 import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
 import { PrismaMembershipRepository } from '../repositories/prisma/membershipRepository';
@@ -15,6 +15,27 @@ const taskService = new TaskService(
   new PrismaProfileRepository(),
   new PrismaMembershipRepository()
 );
+
+export const bulkCreateTasks = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const result = await taskService.bulkCreate(
+      req.user!.prismaId,
+      res.locals.validated.body as BulkCreateInput
+    );
+    res.status(201).json({
+      success: true,
+      message: `${result.count} task${result.count === 1 ? '' : 's'} created successfully`,
+      data: result,
+    });
+  } catch (error) {
+    if (error instanceof TaskServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'bulkCreateTasks failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
 
 export const createTask = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

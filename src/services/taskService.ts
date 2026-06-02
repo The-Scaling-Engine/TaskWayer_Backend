@@ -57,6 +57,16 @@ export interface UpdateTaskInput {
   assignedTo?: string | null;
 }
 
+export interface BulkCreateInput {
+  projectId?: string;
+  columnId?: string | null;
+  priority?: 'low' | 'medium' | 'high';
+  tasks: Array<{
+    title: string;
+    priority?: 'low' | 'medium' | 'high';
+  }>;
+}
+
 export interface GetTasksInput {
   status?: string;
   priority?: string;
@@ -232,6 +242,54 @@ export class TaskService {
     }
 
     return mapPrismaTaskToResponseDTO({ ...task, profile }, { name: profile.name, email: profile.email, avatar: profile.avatar });
+  }
+
+  // ─── Bulk Create ─────────────────────────────────────────────────────────
+
+  async bulkCreate(
+    profileId: string,
+    input: BulkCreateInput
+  ): Promise<{ count: number; tasks: TaskResponseDTO[] }> {
+    const profile = await this.resolveProfile(profileId);
+
+    const validItems = input.tasks.filter(t => t.title.trim().length > 0);
+    if (validItems.length === 0) {
+      throw new TaskServiceError('No valid tasks to create (all titles are blank)', 400);
+    }
+
+    if (input.projectId) {
+      const projectMember = await projectRepository.getMember(input.projectId, profileId);
+      if (!projectMember) {
+        throw new TaskServiceError('You are not a member of this project', 403);
+      }
+      if (projectMember.role === ProjectMemberRole.VIEWER) {
+        throw new TaskServiceError('VIEWER cannot create tasks in this project', 403);
+      }
+    }
+
+    const now = new Date();
+    const dataItems: CreateTaskData[] = validItems.map(item => ({
+      title:       item.title.trim(),
+      description: '',
+      status:      'todo',
+      priority:    item.priority ?? input.priority ?? 'medium',
+      tags:        [],
+      profileId:   profile.id,
+      scheduledAt: now,
+      ...(input.projectId && { projectId: input.projectId }),
+      ...(input.columnId  && { columnId:  input.columnId }),
+    }));
+
+    const created = await this.taskRepo.bulkCreate(dataItems);
+
+    const dtos = created.map(task =>
+      mapPrismaTaskToResponseDTO(
+        { ...task, profile },
+        { name: profile.name, email: profile.email, avatar: profile.avatar }
+      )
+    );
+
+    return { count: created.length, tasks: dtos };
   }
 
   // ─── Read (list) ──────────────────────────────────────────────────────────
