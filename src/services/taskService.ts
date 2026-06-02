@@ -55,6 +55,8 @@ export interface UpdateTaskInput {
   recurrenceInterval?: number | null;
   recurrenceEndDate?: string | null;
   assignedTo?: string | null;
+  milestoneId?: string | null;
+  milestoneOrder?: number | null;
 }
 
 export interface BulkCreateInput {
@@ -455,16 +457,36 @@ export class TaskService {
       }
     }
 
-    // completedAt is server-managed only — client cannot inject this value.
-    // Transition: non-done → done sets it once; done → non-done clears it;
-    // done → done preserves the original timestamp (no reset).
+    // milestoneId — OWNER/MANAGER only
+    if (input.milestoneId !== undefined && task.projectId) {
+      const projectMember = await projectRepository.getMember(task.projectId, profileId);
+      const callerRole = projectMember?.role;
+      const isManagerOrOwner = callerRole === ProjectMemberRole.MANAGER || callerRole === ProjectMemberRole.OWNER;
+      const isOrgAdmin = profile.role === 'ADMIN';
+      if (!isManagerOrOwner && !isOrgAdmin) {
+        throw new TaskServiceError('Only MANAGER or OWNER can assign milestones', 403);
+      }
+      data.milestoneId    = input.milestoneId ?? null;
+      data.milestoneOrder = input.milestoneOrder ?? null;
+    }
+    if (input.milestoneOrder !== undefined && input.milestoneId === undefined) {
+      data.milestoneOrder = input.milestoneOrder ?? null;
+    }
+
+    // completedAt and inProgressAt are server-managed only
+    // Transition: non-done → done sets completedAt once; done → non-done clears it;
+    // non-doing → doing sets inProgressAt once (never overwritten)
     const isCompletingNow = input.status === 'done' && task.status !== 'done';
+    const isStartingNow   = input.status === 'doing' && task.status !== 'doing' && !task.inProgressAt;
     if (input.status !== undefined) {
       data.status = input.status;
       if (isCompletingNow) {
         data.completedAt = new Date();
       } else if (input.status !== 'done') {
         data.completedAt = null;
+      }
+      if (isStartingNow) {
+        data.inProgressAt = new Date();
       }
       // done → done: completedAt not added to data, Prisma leaves it unchanged
     }

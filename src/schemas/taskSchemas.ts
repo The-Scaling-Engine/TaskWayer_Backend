@@ -38,6 +38,8 @@ export const updateTaskSchema = z.object({
   recurrenceInterval: z.coerce.number().int().positive().max(365).nullable().optional(),
   recurrenceEndDate:  z.string().datetime({ offset: true }).nullable().optional(),
   assignedTo:         z.string().uuid('Invalid assignedTo').nullable().optional(),
+  milestoneId:        z.string().uuid('Invalid milestoneId').nullable().optional(),
+  milestoneOrder:     z.coerce.number().int().min(0).nullable().optional(),
 });
 export type UpdateTaskBody = z.infer<typeof updateTaskSchema>;
 

@@ -20,6 +20,7 @@ import {
   importDepartmentMembers,
 } from '../controllers/projectController';
 import boardColumnRoutes from './boardColumnRoutes';
+import milestoneRoutes from './milestoneRoutes';
 import slackConfigRoutes from './slackConfigRoutes';
 
 const router = Router();
@@ -84,6 +85,10 @@ router.delete('/:id/departments/:departmentId', unlinkDepartment);
 // ── Board Columns ─────────────────────────────────────────────
 // GET/POST/PATCH/DELETE /api/projects/:id/columns[/...]
 router.use('/:id/columns', boardColumnRoutes);
+
+// ── Milestones ────────────────────────────────────────────────
+// GET/POST/PATCH/DELETE /api/projects/:id/milestones[/...]
+router.use('/:id/milestones', milestoneRoutes);
 
 // ── Slack Config ──────────────────────────────────────────────
 // GET/PUT/DELETE /api/projects/:id/slack-config

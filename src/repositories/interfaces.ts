@@ -1,4 +1,4 @@
-import { Profile, Department, Task, Todo, DepartmentMember, DepartmentInvitation, DepartmentMemberRole, MembershipStatus, Comment, Notification, NotificationType, RecurrenceType } from '@prisma/client';
+import { Profile, Department, Task, Todo, DepartmentMember, DepartmentInvitation, DepartmentMemberRole, MembershipStatus, Comment, Notification, NotificationType, RecurrenceType, Milestone, MilestoneStatus } from '@prisma/client';
 
 // ─── Profile DTOs ─────────────────────────────────────────────
 
@@ -239,6 +239,10 @@ export interface UpdateTaskData {
   recurrenceEndDate?: Date | null;
   assignedTo?: string | null;
   assignedBy?: string | null;
+  milestoneId?: string | null;
+  milestoneOrder?: number | null;
+  inProgressAt?: Date | null;
+  parentTaskId?: string | null;
 }
 
 export interface TaskFilterOptions {
@@ -328,6 +332,36 @@ export interface ITodoRepository {
   update(id: string, data: UpdateTodoData): Promise<Todo>;
   reorder(items: { id: string; order: number }[], profileId: string): Promise<void>;
   delete(id: string): Promise<void>;
+}
+
+// ─── Milestone DTOs ───────────────────────────────────────────
+
+export interface CreateMilestoneData {
+  projectId: string;
+  title: string;
+  description?: string;
+  startDate?: Date;
+  deadline?: Date;
+  order?: number;
+}
+
+export interface UpdateMilestoneData {
+  title?: string;
+  description?: string | null;
+  startDate?: Date | null;
+  deadline?: Date | null;
+  status?: MilestoneStatus;
+  order?: number;
+  completedAt?: Date | null;
+}
+
+export interface IMilestoneRepository {
+  findAllByProject(projectId: string): Promise<Milestone[]>;
+  findById(id: string): Promise<Milestone | null>;
+  create(data: CreateMilestoneData): Promise<Milestone>;
+  update(id: string, data: UpdateMilestoneData): Promise<Milestone>;
+  delete(id: string): Promise<void>;
+  reorder(items: { id: string; order: number }[], projectId: string): Promise<void>;
 }
 
 // ─── Repository Interfaces ────────────────────────────────────
