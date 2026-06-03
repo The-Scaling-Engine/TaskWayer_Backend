@@ -22,7 +22,7 @@ import {
 import boardColumnRoutes from './boardColumnRoutes';
 import milestoneRoutes from './milestoneRoutes';
 import slackConfigRoutes from './slackConfigRoutes';
-import { getPlanningTree } from '../controllers/milestoneController';
+import { getPlanningTree, getTimeline } from '../controllers/milestoneController';
 
 const router = Router();
 
@@ -90,6 +90,10 @@ router.use('/:id/columns', boardColumnRoutes);
 // ── Planning Tree ─────────────────────────────────────────────
 // GET /api/projects/:id/planning
 router.get('/:id/planning', getPlanningTree);
+
+// ── Timeline ──────────────────────────────────────────────────
+// GET /api/projects/:id/timeline
+router.get('/:id/timeline', getTimeline);
 
 // ── Milestones ────────────────────────────────────────────────
 // GET/POST/PATCH/DELETE /api/projects/:id/milestones[/...]

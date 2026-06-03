@@ -1,6 +1,6 @@
 import prisma from '../../config/prisma';
 import { Milestone } from '@prisma/client';
-import { CreateMilestoneData, UpdateMilestoneData, IMilestoneRepository, PlanningMilestoneItem } from '../interfaces';
+import { CreateMilestoneData, UpdateMilestoneData, IMilestoneRepository, PlanningMilestoneItem, TimelineMilestoneRaw } from '../interfaces';
 
 const creatorProfileSelect = {
   mongoId: true,
@@ -81,6 +81,20 @@ export const milestoneRepository: IMilestoneRepository = {
         },
       },
     }) as Promise<PlanningMilestoneItem[]>;
+  },
+
+  async findForTimeline(projectId: string): Promise<TimelineMilestoneRaw[]> {
+    const rows = await prisma.milestone.findMany({
+      where: { projectId },
+      orderBy: { order: 'asc' },
+      include: {
+        tasks: {
+          where: { parentTaskId: null },
+          select: { status: true, deadline: true },
+        },
+      },
+    });
+    return rows as TimelineMilestoneRaw[];
   },
 
   async reorder(items: { id: string; order: number }[], _projectId: string): Promise<void> {

@@ -5,6 +5,23 @@ import { ServiceError } from '../services/departmentService';
 import { sendError, sendSuccess, codeFor } from '../utils/apiResponse';
 import logger from '../config/logger';
 
+// GET /api/projects/:id/timeline
+export const getTimeline = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const projectId = req.params['id'] as string;
+    const profileId = req.user!.prismaId;
+    const data = await milestoneService.getTimeline(projectId, profileId);
+    sendSuccess(res, 200, data);
+  } catch (error) {
+    if (error instanceof ServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'getTimeline failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 // GET /api/projects/:id/planning
 export const getPlanningTree = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

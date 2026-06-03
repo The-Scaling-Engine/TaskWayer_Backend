@@ -357,10 +357,22 @@ export interface UpdateMilestoneData {
   completedAt?: Date | null;
 }
 
+export interface TimelineMilestoneRaw {
+  id: string;
+  title: string;
+  startDate: Date | null;
+  deadline: Date | null;
+  status: MilestoneStatus;
+  completedAt: Date | null;
+  createdAt: Date;
+  tasks: Array<{ status: string; deadline: Date | null }>;
+}
+
 export interface IMilestoneRepository {
   findAllByProject(projectId: string): Promise<Milestone[]>;
   findById(id: string): Promise<Milestone | null>;
   findPlanningTree(projectId: string): Promise<PlanningMilestoneItem[]>;
+  findForTimeline(projectId: string): Promise<TimelineMilestoneRaw[]>;
   create(data: CreateMilestoneData): Promise<Milestone>;
   update(id: string, data: UpdateMilestoneData): Promise<Milestone>;
   delete(id: string): Promise<void>;

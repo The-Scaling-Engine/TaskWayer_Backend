@@ -189,6 +189,50 @@ export const getPlanningTree = async (
   };
 };
 
+export const getTimeline = async (projectId: string, requesterId: string) => {
+  await assertProjectReadable(projectId, requesterId);
+
+  const rows = await milestoneRepository.findForTimeline(projectId);
+  const now  = new Date();
+
+  const milestones = rows.map(m => {
+    const total    = m.tasks.length;
+    const done     = m.tasks.filter(t => t.status === 'done' || t.status === 'cancelled').length;
+    const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+    const isOverdue = m.deadline != null && m.deadline < now && m.status !== MilestoneStatus.COMPLETED;
+
+    const taskDeadlines = m.tasks
+      .map(t => t.deadline)
+      .filter((d): d is Date => d != null)
+      .map(d => d.getTime());
+
+    return {
+      id:           m.id,
+      title:        m.title,
+      startDate:    m.startDate   ?? null,
+      deadline:     m.deadline    ?? null,
+      status:       m.status,
+      completedAt:  m.completedAt ?? null,
+      progress,
+      isOverdue,
+      taskCount:    total,
+      earliestTaskDeadline: taskDeadlines.length > 0 ? new Date(Math.min(...taskDeadlines)) : null,
+      latestTaskDeadline:   taskDeadlines.length > 0 ? new Date(Math.max(...taskDeadlines)) : null,
+    };
+  });
+
+  // Range: earliest start → latest deadline (with fallbacks)
+  const startCandidates = rows.map(m => (m.startDate ?? m.createdAt).getTime());
+  const endCandidates   = rows.filter(m => m.deadline != null).map(m => m.deadline!.getTime());
+
+  const projectStart = startCandidates.length > 0 ? new Date(Math.min(...startCandidates)) : now;
+  const projectEnd   = endCandidates.length   > 0
+    ? new Date(Math.max(...endCandidates))
+    : new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+  return { milestones, projectStart, projectEnd };
+};
+
 export const checkAndUpdateCompletion = async (milestoneId: string, projectId: string): Promise<void> => {
   try {
     const milestone = await milestoneRepository.findById(milestoneId);
