@@ -16,11 +16,12 @@ export type ProjectActivityAction =
   | 'PROJECT_ROLE_CHANGED'
   | 'PROJECT_DEPARTMENT_LINKED'
   | 'PROJECT_DEPARTMENT_UNLINKED'
-  | 'PROJECT_TASK_MOVED';
+  | 'PROJECT_TASK_MOVED'
+  | 'MILESTONE_COMPLETED';
 
 export interface ProjectActivityInput {
   projectId: string;
-  actorId:   string;
+  actorId:   string | null;
   action:    ProjectActivityAction;
   metadata?: Record<string, unknown>;
 }

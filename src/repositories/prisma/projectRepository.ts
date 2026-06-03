@@ -263,6 +263,14 @@ export class PrismaProjectRepository {
     });
     return rows.map(r => r.profileId);
   }
+
+  async getManagerAndOwnerIds(projectId: string): Promise<string[]> {
+    const rows = await prisma.projectMember.findMany({
+      where: { projectId, role: { in: [ProjectMemberRole.OWNER, ProjectMemberRole.MANAGER] } },
+      select: { profileId: true },
+    });
+    return rows.map(r => r.profileId);
+  }
 }
 
 export const projectRepository = new PrismaProjectRepository();

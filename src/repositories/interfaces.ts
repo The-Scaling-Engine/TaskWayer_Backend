@@ -449,7 +449,7 @@ export interface ITaskRepository {
   findManyPaginated(options: FindManyPaginatedOptions): Promise<PaginatedTasksResult>;
   findSubtasksByParent(parentId: string): Promise<(Task & { profile?: CreatorProfileShape | null })[]>;
   findUnassignedByProject(projectId: string, skip: number, take: number): Promise<{ tasks: UnassignedTaskItem[]; total: number }>;
-  findByMilestone(milestoneId: string): Promise<{ id: string }[]>;
+  findByMilestone(milestoneId: string): Promise<{ id: string; status: string }[]>;
   getMemberTasksInDepartment(profileId: string, departmentId: string, filter: MemberTaskFilterOptions, page: number, limit: number): Promise<PaginatedTasksResult>;
   getWorkloadByMemberIds(memberIds: string[], departmentId: string): Promise<Map<string, WorkloadTaskStats>>;
   create(data: CreateTaskData): Promise<Task>;

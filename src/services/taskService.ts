@@ -3,6 +3,7 @@ import { generateRecurrenceDates } from '../utils/recurrence';
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
 import { resolveTaskPermission, TaskPermissionError } from '../utils/taskPermissions';
 import * as realtimeService from './realtimeService';
+import { checkAndUpdateCompletion } from './milestoneService';
 import {
   ITaskRepository,
   IProfileRepository,
@@ -423,9 +424,13 @@ export class TaskService {
 
     await this.resolveTaskPermission(task, profileId, profile, 'write');
 
+    // Fetch project membership once — reused for assignedTo + milestoneId checks below
+    const projectMember = (task.projectId && (input.assignedTo !== undefined || input.milestoneId !== undefined))
+      ? await projectRepository.getMember(task.projectId, profileId)
+      : null;
+
     // ── Assignment field-level permission ──────────────────────
     if (input.assignedTo !== undefined && task.projectId) {
-      const projectMember = await projectRepository.getMember(task.projectId, profileId);
       const callerRole = projectMember?.role;
       const isManagerOrOwner = callerRole === ProjectMemberRole.MANAGER || callerRole === ProjectMemberRole.OWNER;
       const isOrgAdmin = profile.role === 'ADMIN';
@@ -476,7 +481,6 @@ export class TaskService {
 
     // milestoneId — OWNER/MANAGER only
     if (input.milestoneId !== undefined && task.projectId) {
-      const projectMember = await projectRepository.getMember(task.projectId, profileId);
       const callerRole = projectMember?.role;
       const isManagerOrOwner = callerRole === ProjectMemberRole.MANAGER || callerRole === ProjectMemberRole.OWNER;
       const isOrgAdmin = profile.role === 'ADMIN';
@@ -520,6 +524,17 @@ export class TaskService {
     // Emit planning:updated when milestone assignment changes
     if (data.milestoneId !== undefined && task.projectId) {
       realtimeService.emitPlanningUpdated(task.projectId, { type: 'task_milestone_changed', updatedAt: updated.updatedAt });
+    }
+
+    // Always notify planning view immediately for any change to a milestone task
+    if (task.milestoneId && task.projectId && !task.parentTaskId) {
+      realtimeService.emitPlanningUpdated(task.projectId, { type: 'task_milestone_changed', updatedAt: updated.updatedAt });
+    }
+
+    // Auto-complete / re-open milestone — fire-and-forget so HTTP response is not blocked;
+    // checkAndUpdateCompletion emits planning:updated on all paths when it finishes
+    if (data.status !== undefined && task.milestoneId && task.projectId && !task.parentTaskId) {
+      void checkAndUpdateCompletion(task.milestoneId, task.projectId);
     }
 
     // Notify new assignee (fire-and-forget)

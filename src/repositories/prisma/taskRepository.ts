@@ -70,10 +70,10 @@ export class PrismaTaskRepository implements ITaskRepository {
     return { tasks, total };
   }
 
-  async findByMilestone(milestoneId: string): Promise<{ id: string }[]> {
+  async findByMilestone(milestoneId: string): Promise<{ id: string; status: string }[]> {
     return prisma.task.findMany({
       where: { milestoneId, parentTaskId: null },
-      select: { id: true },
+      select: { id: true, status: true },
     });
   }
 
