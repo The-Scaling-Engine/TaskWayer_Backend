@@ -64,6 +64,34 @@ export const bulkCreateSchema = z.object({
 });
 export type BulkCreateBody = z.infer<typeof bulkCreateSchema>;
 
+export const createSubtaskSchema = z.object({
+  title:       z.string().trim().min(1, 'Title is required').max(255),
+  description: z.string().trim().max(5000).optional(),
+  priority:    z.enum(['low', 'medium', 'high']).optional(),
+  tags:        z.array(z.string().trim()).optional(),
+  deadline:    z.string().datetime({ offset: true }).nullable().optional(),
+});
+export type CreateSubtaskBody = z.infer<typeof createSubtaskSchema>;
+
+export const updateSubtaskSchema = z.object({
+  title:       z.string().trim().min(1).max(255).optional(),
+  description: z.string().trim().max(5000).optional(),
+  status:      z.enum(['todo', 'doing', 'done']).optional(),
+  priority:    z.enum(['low', 'medium', 'high']).optional(),
+  tags:        z.array(z.string().trim()).optional(),
+  deadline:    z.string().datetime({ offset: true }).nullable().optional(),
+});
+export type UpdateSubtaskBody = z.infer<typeof updateSubtaskSchema>;
+
+export const moveSubtaskSchema = z.object({
+  newParentId: z.string().uuid('Invalid newParentId'),
+});
+
+export const subtaskParamsSchema = z.object({
+  id:  z.string().uuid('Invalid task id'),
+  sid: z.string().uuid('Invalid subtask id'),
+});
+
 export const getTasksQuerySchema = z.object({
   page:         z.coerce.number().int().positive().max(1000).default(1),
   limit:        z.coerce.number().int().positive().max(100).default(10),

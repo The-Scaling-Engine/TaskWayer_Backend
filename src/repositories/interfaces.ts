@@ -221,6 +221,8 @@ export interface CreateTaskData {
   recurrenceParentId?: string;
   assignedTo?: string;
   assignedBy?: string;
+  parentTaskId?: string;
+  milestoneId?: string;
 }
 
 export interface UpdateTaskData {
@@ -281,7 +283,7 @@ export interface FindManyPaginatedOptions {
 }
 
 export interface PaginatedTasksResult {
-  tasks: Task[];
+  tasks: (Task & { subtasks?: Array<{ status: string }>; profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null })[];
   total: number;
   page: number;
   limit: number;
@@ -412,9 +414,10 @@ export interface IInvitationRepository {
 
 export interface ITaskRepository {
   findById(id: string): Promise<Task | null>;
-  findByIdOrMongoId(id: string): Promise<Task | null>;
+  findByIdOrMongoId(id: string): Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null; subtasks?: Array<{ status: string }> }) | null>;
   findByProfile(profileId: string): Promise<Task[]>;
   findManyPaginated(options: FindManyPaginatedOptions): Promise<PaginatedTasksResult>;
+  findSubtasksByParent(parentId: string): Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null })[]>;
   getMemberTasksInDepartment(profileId: string, departmentId: string, filter: MemberTaskFilterOptions, page: number, limit: number): Promise<PaginatedTasksResult>;
   getWorkloadByMemberIds(memberIds: string[], departmentId: string): Promise<Map<string, WorkloadTaskStats>>;
   create(data: CreateTaskData): Promise<Task>;

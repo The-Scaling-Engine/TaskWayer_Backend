@@ -36,12 +36,23 @@ export class PrismaTaskRepository implements ITaskRepository {
    * During Phase 3 cut-over, frontend URLs may still contain Mongo _id strings.
    * This method ensures those requests resolve correctly without breaking.
    */
-  async findByIdOrMongoId(id: string): Promise<Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null } | null> {
-    const include = { profile: { select: creatorProfileSelect } };
+  async findByIdOrMongoId(id: string): Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null; subtasks?: Array<{ status: string }> }) | null> {
+    const include = {
+      profile: { select: creatorProfileSelect },
+      subtasks: { select: { status: true } },
+    };
     if (isUUID(id)) {
-      return prisma.task.findUnique({ where: { id }, include });
+      return prisma.task.findUnique({ where: { id }, include }) as Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null; subtasks?: Array<{ status: string }> }) | null>;
     }
-    return prisma.task.findUnique({ where: { mongoId: id }, include });
+    return prisma.task.findUnique({ where: { mongoId: id }, include }) as Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null; subtasks?: Array<{ status: string }> }) | null>;
+  }
+
+  async findSubtasksByParent(parentId: string): Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null })[]> {
+    return prisma.task.findMany({
+      where: { parentTaskId: parentId },
+      orderBy: { createdAt: 'asc' },
+      include: { profile: { select: creatorProfileSelect } },
+    }) as Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null })[]>;
   }
 
   // ─────────────────────────────────────────────────
@@ -146,11 +157,17 @@ export class PrismaTaskRepository implements ITaskRepository {
 
     // ── Execute count + rows in single transaction to avoid drift ──
     const [tasks, total] = await prisma.$transaction([
-      prisma.task.findMany({ where, orderBy, skip, take: limit, include: { profile: { select: creatorProfileSelect } } }),
+      prisma.task.findMany({
+        where, orderBy, skip, take: limit,
+        include: {
+          profile: { select: creatorProfileSelect },
+          subtasks: { select: { status: true } },
+        },
+      }),
       prisma.task.count({ where }),
     ]);
 
-    return { tasks, total, page, limit };
+    return { tasks: tasks as PaginatedTasksResult['tasks'], total, page, limit };
   }
 
   // ─────────────────────────────────────────────────

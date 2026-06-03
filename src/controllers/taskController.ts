@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { TaskService, TaskServiceError } from '../services/taskService';
-import type { CreateTaskInput, UpdateTaskInput, GetTasksInput, BulkCreateInput } from '../services/taskService';
+import type { CreateTaskInput, UpdateTaskInput, GetTasksInput, BulkCreateInput, CreateSubtaskInput, UpdateSubtaskInput } from '../services/taskService';
 import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
 import { PrismaMembershipRepository } from '../repositories/prisma/membershipRepository';
@@ -183,6 +183,99 @@ export const getTaskStats = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
     logger.error({ err: error, requestId: req.requestId }, 'getTaskStats failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const listSubtasks = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const parentId = req.params['id'] as string;
+    const subtasks = await taskService.listSubtasks(req.user!.prismaId, parentId);
+    res.status(200).json({ success: true, count: subtasks.length, data: subtasks });
+  } catch (error) {
+    if (error instanceof TaskServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'listSubtasks failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const createSubtask = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const parentId = req.params['id'] as string;
+    const subtask = await taskService.createSubtask(
+      req.user!.prismaId,
+      parentId,
+      res.locals.validated.body as CreateSubtaskInput
+    );
+    res.status(201).json({ success: true, message: 'Subtask created successfully', data: subtask });
+  } catch (error) {
+    if (error instanceof TaskServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'createSubtask failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const updateSubtask = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const parentId = req.params['id'] as string;
+    const subtaskId = req.params['sid'] as string;
+    const updated = await taskService.updateSubtask(
+      req.user!.prismaId,
+      parentId,
+      subtaskId,
+      res.locals.validated.body as UpdateSubtaskInput
+    );
+    res.status(200).json({ success: true, message: 'Subtask updated successfully', data: updated });
+  } catch (error) {
+    if (error instanceof TaskServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'updateSubtask failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const deleteSubtask = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await taskService.deleteSubtask(
+      req.user!.prismaId,
+      req.params['id'] as string,
+      req.params['sid'] as string
+    );
+    res.status(200).json({ success: true, message: 'Subtask deleted successfully' });
+  } catch (error) {
+    if (error instanceof TaskServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'deleteSubtask failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const moveSubtask = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { newParentId } = res.locals.validated.body as { newParentId: string };
+    const updated = await taskService.moveSubtask(
+      req.user!.prismaId,
+      req.params['id'] as string,
+      req.params['sid'] as string,
+      newParentId
+    );
+    res.status(200).json({ success: true, message: 'Subtask moved successfully', data: updated });
+  } catch (error) {
+    if (error instanceof TaskServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'moveSubtask failed');
     sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };

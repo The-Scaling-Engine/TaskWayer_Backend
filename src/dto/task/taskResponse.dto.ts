@@ -20,6 +20,7 @@ export interface TaskResponseDTO {
   deadline: Date | null;
   scheduledAt: Date | null;
   completedAt: Date | null;
+  inProgressAt: Date | null;
   projectId: string | null;
   columnId: string | null;
   assignedTo: string | null;
@@ -30,6 +31,10 @@ export interface TaskResponseDTO {
   recurrenceInterval: number | null;
   recurrenceEndDate: Date | null;
   recurrenceParentId: string | null;
+  milestoneId: string | null;
+  milestoneOrder: number | null;
+  parentTaskId: string | null;
+  subtaskProgress?: { completed: number; total: number };
   createdAt: Date;
   updatedAt: Date;
   __v: number; // Mongoose compatibility field — always 0 for Prisma

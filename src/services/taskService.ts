@@ -59,6 +59,23 @@ export interface UpdateTaskInput {
   milestoneOrder?: number | null;
 }
 
+export interface CreateSubtaskInput {
+  title: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  tags?: string[];
+  deadline?: string | null;
+}
+
+export interface UpdateSubtaskInput {
+  title?: string;
+  description?: string;
+  status?: 'todo' | 'doing' | 'done';
+  priority?: 'low' | 'medium' | 'high';
+  tags?: string[];
+  deadline?: string | null;
+}
+
 export interface BulkCreateInput {
   projectId?: string;
   columnId?: string | null;
@@ -576,6 +593,142 @@ export class TaskService {
     await this.taskRepo.update(task.id, { recurrenceEndDate: newEndDate });
 
     return { cancelled };
+  }
+
+  // ─── Subtasks ─────────────────────────────────────────────────────────────
+
+  async listSubtasks(profileId: string, parentId: string): Promise<TaskResponseDTO[]> {
+    const parent = await this.taskRepo.findByIdOrMongoId(parentId);
+    if (!parent) throw new TaskServiceError('Task not found', 404);
+
+    const profile = await this.resolveProfile(profileId);
+    await this.resolveTaskPermission(parent, profileId, profile, 'read');
+
+    const subtasks = await this.taskRepo.findSubtasksByParent(parent.id);
+    return subtasks.map(s => {
+      const t = s as typeof s & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null };
+      return mapPrismaTaskToResponseDTO({ ...s, profile }, t.profile);
+    });
+  }
+
+  async createSubtask(profileId: string, parentId: string, input: CreateSubtaskInput): Promise<TaskResponseDTO> {
+    if (!input.title?.trim()) throw new TaskServiceError('Title is required', 400);
+
+    const parent = await this.taskRepo.findByIdOrMongoId(parentId);
+    if (!parent) throw new TaskServiceError('Task not found', 404);
+    if (parent.parentTaskId) throw new TaskServiceError('Cannot create subtask of a subtask', 400);
+
+    const profile = await this.resolveProfile(profileId);
+    await this.resolveTaskPermission(parent, profileId, profile, 'write');
+
+    const now = new Date();
+    const subtask = await this.taskRepo.create({
+      title:       input.title.trim(),
+      description: input.description ?? '',
+      status:      'todo',
+      priority:    input.priority ?? 'medium',
+      tags:        input.tags ?? [],
+      profileId:   profile.id,
+      scheduledAt: now,
+      parentTaskId: parent.id,
+      ...(parent.projectId  && { projectId:   parent.projectId }),
+      ...(parent.milestoneId && { milestoneId: parent.milestoneId }),
+      ...(input.deadline != null && { deadline: new Date(input.deadline) }),
+    });
+
+    return mapPrismaTaskToResponseDTO({ ...subtask, profile }, { name: profile.name, email: profile.email, avatar: profile.avatar });
+  }
+
+  async updateSubtask(
+    profileId: string,
+    parentId: string,
+    subtaskId: string,
+    input: UpdateSubtaskInput
+  ): Promise<TaskResponseDTO> {
+    const parent = await this.taskRepo.findByIdOrMongoId(parentId);
+    if (!parent) throw new TaskServiceError('Task not found', 404);
+
+    const subtask = await this.taskRepo.findById(subtaskId);
+    if (!subtask || subtask.parentTaskId !== parent.id) throw new TaskServiceError('Subtask not found', 404);
+
+    const profile = await this.resolveProfile(profileId);
+    await this.resolveTaskPermission(subtask, profileId, profile, 'write');
+
+    const data: UpdateTaskData = {};
+    if (input.title       !== undefined) data.title       = input.title;
+    if (input.description !== undefined) data.description = input.description;
+    if (input.priority    !== undefined) data.priority    = input.priority;
+    if (input.tags        !== undefined) data.tags        = input.tags;
+    if (input.deadline    !== undefined) data.deadline    = input.deadline ? new Date(input.deadline) : null;
+
+    if (input.status !== undefined) {
+      data.status = input.status;
+      const isCompletingNow = input.status === 'done' && subtask.status !== 'done';
+      const isStartingNow   = input.status === 'doing' && subtask.status !== 'doing' && !subtask.inProgressAt;
+      if (isCompletingNow) {
+        data.completedAt = new Date();
+      } else if (input.status !== 'done') {
+        data.completedAt = null;
+      }
+      if (isStartingNow) data.inProgressAt = new Date();
+    }
+
+    const updated = await this.taskRepo.update(subtask.id, data);
+    return mapPrismaTaskToResponseDTO({ ...updated, profile }, { name: profile.name, email: profile.email, avatar: profile.avatar });
+  }
+
+  async deleteSubtask(profileId: string, parentId: string, subtaskId: string): Promise<void> {
+    const parent = await this.taskRepo.findByIdOrMongoId(parentId);
+    if (!parent) throw new TaskServiceError('Task not found', 404);
+
+    const subtask = await this.taskRepo.findById(subtaskId);
+    if (!subtask || subtask.parentTaskId !== parent.id) throw new TaskServiceError('Subtask not found', 404);
+
+    const profile = await this.resolveProfile(profileId);
+    await this.resolveTaskPermission(subtask, profileId, profile, 'write');
+
+    await this.taskRepo.delete(subtask.id);
+  }
+
+  async moveSubtask(
+    profileId: string,
+    parentId: string,
+    subtaskId: string,
+    newParentId: string
+  ): Promise<TaskResponseDTO> {
+    const parent = await this.taskRepo.findByIdOrMongoId(parentId);
+    if (!parent) throw new TaskServiceError('Task not found', 404);
+
+    const subtask = await this.taskRepo.findById(subtaskId);
+    if (!subtask || subtask.parentTaskId !== parent.id) throw new TaskServiceError('Subtask not found', 404);
+
+    const profile = await this.resolveProfile(profileId);
+
+    // Move requires MANAGER+ on the parent task's project
+    if (parent.projectId) {
+      const projectMember = await projectRepository.getMember(parent.projectId, profileId);
+      const isManagerOrOwner = projectMember?.role === ProjectMemberRole.MANAGER || projectMember?.role === ProjectMemberRole.OWNER;
+      const isOrgAdmin = profile.role === 'ADMIN';
+      if (!isManagerOrOwner && !isOrgAdmin) {
+        throw new TaskServiceError('Only MANAGER or OWNER can move subtasks', 403);
+      }
+    } else if (parent.profileId !== profileId && profile.role !== 'ADMIN') {
+      throw new TaskServiceError('Not authorized to move this subtask', 403);
+    }
+
+    const newParent = await this.taskRepo.findByIdOrMongoId(newParentId);
+    if (!newParent) throw new TaskServiceError('New parent task not found', 404);
+    if (newParent.parentTaskId) throw new TaskServiceError('Cannot move subtask to another subtask', 400);
+    if (newParent.id === subtask.id) throw new TaskServiceError('Cannot move task to itself', 400);
+
+    const data: UpdateTaskData = {
+      parentTaskId: newParent.id,
+      ...(newParent.projectId  !== undefined && { projectId:   newParent.projectId ?? null }),
+      ...(newParent.milestoneId !== undefined && { milestoneId: newParent.milestoneId ?? null }),
+    };
+
+    const updated = await this.taskRepo.update(subtask.id, data);
+    return mapPrismaTaskToResponseDTO({ ...updated, profile }, { name: profile.name, email: profile.email, avatar: profile.avatar });
   }
 
   // ─── Delete ───────────────────────────────────────────────────────────────
