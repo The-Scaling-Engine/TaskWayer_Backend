@@ -517,6 +517,11 @@ export class TaskService {
       updatedAt: updated.updatedAt,
     });
 
+    // Emit planning:updated when milestone assignment changes
+    if (data.milestoneId !== undefined && task.projectId) {
+      realtimeService.emitPlanningUpdated(task.projectId, { type: 'task_milestone_changed', updatedAt: updated.updatedAt });
+    }
+
     // Notify new assignee (fire-and-forget)
     if (data.assignedTo && task.projectId) {
       void notificationService.notifyTaskAssigned({
@@ -728,6 +733,12 @@ export class TaskService {
     };
 
     const updated = await this.taskRepo.update(subtask.id, data);
+
+    const effectiveProjectId = newParent.projectId ?? parent.projectId;
+    if (effectiveProjectId) {
+      realtimeService.emitPlanningUpdated(effectiveProjectId, { type: 'subtask_moved', updatedAt: updated.updatedAt });
+    }
+
     return mapPrismaTaskToResponseDTO({ ...updated, profile }, { name: profile.name, email: profile.email, avatar: profile.avatar });
   }
 

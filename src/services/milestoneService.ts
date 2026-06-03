@@ -7,6 +7,7 @@ const taskRepository = new PrismaTaskRepository();
 import { ServiceError } from './departmentService';
 import { assertProjectReadable } from './projectService';
 import * as notificationService from './notificationService';
+import { emitPlanningUpdated } from './realtimeService';
 
 // ─── Permission helpers ───────────────────────────────────────
 
@@ -32,13 +33,15 @@ export const createMilestone = async (
   data: { title: string; description?: string; startDate?: string | null; deadline?: string | null }
 ) => {
   await assertManager(projectId, requesterId);
-  return milestoneRepository.create({
+  const created = await milestoneRepository.create({
     projectId,
     title: data.title.trim(),
     ...(data.description !== undefined && { description: data.description.trim() }),
     ...(data.startDate   != null        && { startDate:   new Date(data.startDate) }),
     ...(data.deadline    != null        && { deadline:    new Date(data.deadline) }),
   });
+  emitPlanningUpdated(projectId, { type: 'milestone_crud', updatedAt: created.createdAt });
+  return created;
 };
 
 export const updateMilestone = async (
@@ -93,6 +96,7 @@ export const updateMilestone = async (
     })();
   }
 
+  emitPlanningUpdated(projectId, { type: wasActive && becomesCompleted ? 'milestone_completed' : 'milestone_crud', updatedAt: updated.updatedAt });
   return updated;
 };
 
@@ -107,6 +111,7 @@ export const deleteMilestone = async (
     throw new ServiceError('Milestone not found', 404);
   }
   await milestoneRepository.delete(milestoneId);
+  emitPlanningUpdated(projectId, { type: 'milestone_crud', updatedAt: new Date() });
 };
 
 export const reorderMilestones = async (
@@ -123,6 +128,7 @@ export const reorderMilestones = async (
     }
   }
   await milestoneRepository.reorder(items, projectId);
+  emitPlanningUpdated(projectId, { type: 'milestone_reordered', updatedAt: new Date() });
 };
 
 export const getPlanningTree = async (
@@ -203,4 +209,5 @@ export const reorderMilestoneTasks = async (
   }
 
   await milestoneRepository.reorderTasks(milestoneId, orderedIds);
+  emitPlanningUpdated(projectId, { type: 'milestone_reordered', updatedAt: new Date() });
 };

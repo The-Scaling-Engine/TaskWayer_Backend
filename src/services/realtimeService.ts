@@ -86,3 +86,18 @@ export function emitTaskUpdated(taskId: string, payload: TaskUpdatedPayload): vo
     logger.warn({ err }, 'emitTaskUpdated failed');
   }
 }
+
+// ─── Planning events ──────────────────────────────────────────
+
+export interface PlanningUpdatedPayload {
+  type: 'milestone_crud' | 'milestone_reordered' | 'task_milestone_changed' | 'subtask_moved' | 'milestone_completed';
+  updatedAt: Date;
+}
+
+export function emitPlanningUpdated(projectId: string, payload: PlanningUpdatedPayload): void {
+  try {
+    getIO().to(`project:${projectId}`).emit('planning:updated', payload);
+  } catch (err) {
+    logger.warn({ err }, 'emitPlanningUpdated failed');
+  }
+}

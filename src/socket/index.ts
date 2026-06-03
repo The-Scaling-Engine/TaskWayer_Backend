@@ -41,6 +41,7 @@ function checkJoinRateLimit(key: string): boolean {
 function cleanupSocketCounters(socketId: string): void {
   socketJoinCounters.delete(`${socketId}:task`);
   socketJoinCounters.delete(`${socketId}:dept`);
+  socketJoinCounters.delete(`${socketId}:project`);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -176,6 +177,37 @@ export function initSocket(httpServer: HttpServer): SocketServer {
         }
       } catch (err) {
         logger.error({ err, userId: user.prismaId, departmentId }, 'Socket join:department failed');
+      }
+    });
+
+    // ─── Join project room ────────────────────────────────────
+    socket.on('join:project', async (projectId: string) => {
+      if (!checkJoinRateLimit(`${socket.id}:project`)) {
+        socket.emit('error', {
+          code: 'SOCKET_RATE_LIMIT',
+          message: 'Too many room join attempts',
+        });
+        return;
+      }
+
+      try {
+        if (typeof projectId !== 'string' || !projectId.trim()) return;
+
+        if (user.role === 'ADMIN') {
+          void socket.join(`project:${projectId}`);
+          return;
+        }
+
+        const membership = await prisma.projectMember.findFirst({
+          where: { projectId, profileId: user.prismaId },
+          select: { id: true },
+        });
+
+        if (membership) {
+          void socket.join(`project:${projectId}`);
+        }
+      } catch (err) {
+        logger.error({ err, userId: user.prismaId, projectId }, 'Socket join:project failed');
       }
     });
 
