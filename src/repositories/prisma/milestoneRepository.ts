@@ -1,6 +1,13 @@
 import prisma from '../../config/prisma';
 import { Milestone } from '@prisma/client';
-import { CreateMilestoneData, UpdateMilestoneData, IMilestoneRepository } from '../interfaces';
+import { CreateMilestoneData, UpdateMilestoneData, IMilestoneRepository, PlanningMilestoneItem } from '../interfaces';
+
+const creatorProfileSelect = {
+  mongoId: true,
+  name: true,
+  email: true,
+  avatar: true,
+} as const;
 
 async function getMaxOrder(projectId: string): Promise<number> {
   const result = await prisma.milestone.aggregate({
@@ -47,10 +54,47 @@ export const milestoneRepository: IMilestoneRepository = {
     ]);
   },
 
+  async findPlanningTree(projectId: string): Promise<PlanningMilestoneItem[]> {
+    return prisma.milestone.findMany({
+      where: { projectId },
+      orderBy: { order: 'asc' },
+      include: {
+        tasks: {
+          where: { parentTaskId: null },
+          orderBy: [{ milestoneOrder: 'asc' }, { createdAt: 'asc' }],
+          include: {
+            subtasks: {
+              orderBy: { createdAt: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                priority: true,
+                deadline: true,
+                assignedTo: true,
+                parentTaskId: true,
+                createdAt: true,
+              },
+            },
+            profile: { select: creatorProfileSelect },
+          },
+        },
+      },
+    }) as Promise<PlanningMilestoneItem[]>;
+  },
+
   async reorder(items: { id: string; order: number }[], _projectId: string): Promise<void> {
     await prisma.$transaction(
       items.map(({ id, order }) =>
         prisma.milestone.update({ where: { id }, data: { order } })
+      )
+    );
+  },
+
+  async reorderTasks(milestoneId: string, orderedIds: string[]): Promise<void> {
+    await prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.task.update({ where: { id }, data: { milestoneOrder: index } })
       )
     );
   },

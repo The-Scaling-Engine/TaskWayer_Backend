@@ -55,6 +55,28 @@ export class PrismaTaskRepository implements ITaskRepository {
     }) as Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null })[]>;
   }
 
+  async findUnassignedByProject(projectId: string, skip: number, take: number) {
+    const where = { projectId, milestoneId: null, parentTaskId: null };
+    const [tasks, total] = await prisma.$transaction([
+      prisma.task.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+        include: { profile: { select: creatorProfileSelect } },
+      }),
+      prisma.task.count({ where }),
+    ]);
+    return { tasks, total };
+  }
+
+  async findByMilestone(milestoneId: string): Promise<{ id: string }[]> {
+    return prisma.task.findMany({
+      where: { milestoneId, parentTaskId: null },
+      select: { id: true },
+    });
+  }
+
   // ─────────────────────────────────────────────────
   // COLLECTION
   // ─────────────────────────────────────────────────

@@ -22,6 +22,7 @@ import {
 import boardColumnRoutes from './boardColumnRoutes';
 import milestoneRoutes from './milestoneRoutes';
 import slackConfigRoutes from './slackConfigRoutes';
+import { getPlanningTree } from '../controllers/milestoneController';
 
 const router = Router();
 
@@ -85,6 +86,10 @@ router.delete('/:id/departments/:departmentId', unlinkDepartment);
 // ── Board Columns ─────────────────────────────────────────────
 // GET/POST/PATCH/DELETE /api/projects/:id/columns[/...]
 router.use('/:id/columns', boardColumnRoutes);
+
+// ── Planning Tree ─────────────────────────────────────────────
+// GET /api/projects/:id/planning
+router.get('/:id/planning', getPlanningTree);
 
 // ── Milestones ────────────────────────────────────────────────
 // GET/POST/PATCH/DELETE /api/projects/:id/milestones[/...]

@@ -1,6 +1,9 @@
 import { MilestoneStatus } from '@prisma/client';
 import { milestoneRepository } from '../repositories/prisma/milestoneRepository';
+import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
 import { projectRepository, MANAGER_ROLES } from '../repositories/prisma/projectRepository';
+
+const taskRepository = new PrismaTaskRepository();
 import { ServiceError } from './departmentService';
 import { assertProjectReadable } from './projectService';
 import * as notificationService from './notificationService';
@@ -120,4 +123,84 @@ export const reorderMilestones = async (
     }
   }
   await milestoneRepository.reorder(items, projectId);
+};
+
+export const getPlanningTree = async (
+  projectId: string,
+  requesterId: string,
+  query: { skip?: number; take?: number }
+) => {
+  await assertProjectReadable(projectId, requesterId);
+
+  const take = Math.min(100, query.take ?? 50);
+  const skip = Math.max(0, query.skip ?? 0);
+
+  const [milestoneItems, { tasks: unassignedTasks, total }] = await Promise.all([
+    milestoneRepository.findPlanningTree(projectId),
+    taskRepository.findUnassignedByProject(projectId, skip, take),
+  ]);
+
+  const now = new Date();
+
+  const milestones = milestoneItems.map((m: typeof milestoneItems[0]) => {
+    const tasks = m.tasks;
+    const doneCount = tasks.filter((t: typeof tasks[0]) => t.status === 'done').length;
+    const totalCount = tasks.length;
+    const isOverdue = m.deadline != null && m.deadline < now && m.status !== MilestoneStatus.COMPLETED;
+
+    return {
+      ...m,
+      progress: {
+        done: doneCount,
+        total: totalCount,
+        percent: totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0,
+      },
+      isOverdue,
+      tasks: tasks.map((t: typeof tasks[0]) => {
+        const subtaskList = t.subtasks ?? [];
+        const subtaskDone = subtaskList.filter((s: typeof subtaskList[0]) => s.status === 'done').length;
+        return {
+          ...t,
+          subtaskProgress: subtaskList.length > 0
+            ? { done: subtaskDone, total: subtaskList.length }
+            : undefined,
+          subtasks: subtaskList,
+        };
+      }),
+    };
+  });
+
+  return {
+    milestones,
+    unassigned: {
+      data: unassignedTasks,
+      total,
+      page: Math.floor(skip / take) + 1,
+      limit: take,
+    },
+  };
+};
+
+export const reorderMilestoneTasks = async (
+  projectId: string,
+  milestoneId: string,
+  requesterId: string,
+  orderedIds: string[]
+) => {
+  await assertManager(projectId, requesterId);
+
+  const milestone = await milestoneRepository.findById(milestoneId);
+  if (!milestone || milestone.projectId !== projectId) {
+    throw new ServiceError('Milestone not found', 404);
+  }
+
+  const existingTasks = await taskRepository.findByMilestone(milestoneId);
+  const taskIds = new Set(existingTasks.map(t => t.id));
+  for (const id of orderedIds) {
+    if (!taskIds.has(id)) {
+      throw new ServiceError(`Task ${id} is not in this milestone`, 400);
+    }
+  }
+
+  await milestoneRepository.reorderTasks(milestoneId, orderedIds);
 };

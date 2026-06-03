@@ -26,3 +26,8 @@ export const reorderMilestonesSchema = z.object({
   ).min(1),
 });
 export type ReorderMilestonesBody = z.infer<typeof reorderMilestonesSchema>;
+
+export const reorderMilestoneTasksSchema = z.object({
+  orderedIds: z.array(z.string().uuid()).min(1),
+});
+export type ReorderMilestoneTasksBody = z.infer<typeof reorderMilestoneTasksSchema>;

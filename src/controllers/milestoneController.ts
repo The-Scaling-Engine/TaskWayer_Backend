@@ -5,6 +5,44 @@ import { ServiceError } from '../services/departmentService';
 import { sendError, sendSuccess, codeFor } from '../utils/apiResponse';
 import logger from '../config/logger';
 
+// GET /api/projects/:id/planning
+export const getPlanningTree = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const projectId = req.params['id'] as string;
+    const profileId = req.user!.prismaId;
+    const skip = req.query['skip'] ? parseInt(req.query['skip'] as string, 10) : 0;
+    const take = req.query['take'] ? parseInt(req.query['take'] as string, 10) : 50;
+    const tree = await milestoneService.getPlanningTree(projectId, profileId, { skip, take });
+    sendSuccess(res, 200, tree);
+  } catch (error) {
+    if (error instanceof ServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'getPlanningTree failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+// PATCH /api/projects/:id/milestones/:mid/tasks/reorder
+export const reorderMilestoneTasks = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const projectId   = req.params['id'] as string;
+    const milestoneId = req.params['mid'] as string;
+    const profileId   = req.user!.prismaId;
+    const { orderedIds } = req.body as { orderedIds: string[] };
+    await milestoneService.reorderMilestoneTasks(projectId, milestoneId, profileId, orderedIds);
+    sendSuccess(res, 200, { message: 'Tasks reordered' });
+  } catch (error) {
+    if (error instanceof ServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'reorderMilestoneTasks failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 // GET /api/projects/:id/milestones
 export const getMilestones = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

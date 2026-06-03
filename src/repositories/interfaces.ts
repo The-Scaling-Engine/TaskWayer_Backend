@@ -360,10 +360,12 @@ export interface UpdateMilestoneData {
 export interface IMilestoneRepository {
   findAllByProject(projectId: string): Promise<Milestone[]>;
   findById(id: string): Promise<Milestone | null>;
+  findPlanningTree(projectId: string): Promise<PlanningMilestoneItem[]>;
   create(data: CreateMilestoneData): Promise<Milestone>;
   update(id: string, data: UpdateMilestoneData): Promise<Milestone>;
   delete(id: string): Promise<void>;
   reorder(items: { id: string; order: number }[], projectId: string): Promise<void>;
+  reorderTasks(milestoneId: string, orderedIds: string[]): Promise<void>;
 }
 
 // ─── Repository Interfaces ────────────────────────────────────
@@ -412,12 +414,42 @@ export interface IInvitationRepository {
   delete(id: string): Promise<void>;
 }
 
+// ─── Planning Tree Types ──────────────────────────────────────
+
+export type CreatorProfileShape = { mongoId: string | null; name: string | null; email: string; avatar: string | null };
+
+export type PlanningSubtaskItem = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string | null;
+  deadline: Date | null;
+  assignedTo: string | null;
+  parentTaskId: string | null;
+  createdAt: Date;
+};
+
+export type PlanningTaskItem = Task & {
+  subtasks: PlanningSubtaskItem[];
+  profile?: CreatorProfileShape | null;
+};
+
+export type PlanningMilestoneItem = Milestone & {
+  tasks: PlanningTaskItem[];
+};
+
+export type UnassignedTaskItem = Task & {
+  profile?: CreatorProfileShape | null;
+};
+
 export interface ITaskRepository {
   findById(id: string): Promise<Task | null>;
-  findByIdOrMongoId(id: string): Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null; subtasks?: Array<{ status: string }> }) | null>;
+  findByIdOrMongoId(id: string): Promise<(Task & { profile?: CreatorProfileShape | null; subtasks?: Array<{ status: string }> }) | null>;
   findByProfile(profileId: string): Promise<Task[]>;
   findManyPaginated(options: FindManyPaginatedOptions): Promise<PaginatedTasksResult>;
-  findSubtasksByParent(parentId: string): Promise<(Task & { profile?: { mongoId: string | null; name: string | null; email: string; avatar: string | null } | null })[]>;
+  findSubtasksByParent(parentId: string): Promise<(Task & { profile?: CreatorProfileShape | null })[]>;
+  findUnassignedByProject(projectId: string, skip: number, take: number): Promise<{ tasks: UnassignedTaskItem[]; total: number }>;
+  findByMilestone(milestoneId: string): Promise<{ id: string }[]>;
   getMemberTasksInDepartment(profileId: string, departmentId: string, filter: MemberTaskFilterOptions, page: number, limit: number): Promise<PaginatedTasksResult>;
   getWorkloadByMemberIds(memberIds: string[], departmentId: string): Promise<Map<string, WorkloadTaskStats>>;
   create(data: CreateTaskData): Promise<Task>;
