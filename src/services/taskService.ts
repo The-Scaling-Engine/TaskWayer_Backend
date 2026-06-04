@@ -180,6 +180,10 @@ export class TaskService {
       if (projectMember.role === ProjectMemberRole.VIEWER) {
         throw new TaskServiceError('VIEWER cannot create tasks in this project', 403);
       }
+      const project = await projectRepository.findById(input.projectId, true);
+      if (project?.archivedAt) {
+        throw new TaskServiceError('Cannot create tasks in an archived project', 400);
+      }
     }
 
     if (input.isRecurring) {

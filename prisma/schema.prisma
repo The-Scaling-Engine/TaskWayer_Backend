@@ -478,6 +478,8 @@ model ProjectSlackConfig {
   timezone          String  @default("UTC")
   lastDailySentKey  String? // idempotency key e.g. "2026-06-03" — set before send
   lastWeeklySentKey String? // idempotency key e.g. "2026-W23"   — set before send
+  webhookSecret     String? @unique // Phase 8: n8n inbound webhook authentication
+  emojiMappings     Json?   // Phase 8: { "sunglasses": "profileId" } — canonical emoji names
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 

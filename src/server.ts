@@ -27,6 +27,7 @@ import todoRoutes from './routes/todoRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import projectRoutes from './routes/projectRoutes';
 import taskNoteRoutes from './routes/taskNoteRoutes';
+import webhookRoutes from './routes/webhookRoutes';
 import { protect, AuthRequest } from './middleware/authMiddleware';
 import { initSocket, getIO } from './socket/index';
 import prisma from './config/prisma';
@@ -120,6 +121,7 @@ app.use('/api/todos', todoRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api', taskNoteRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // ─── 9. Swagger UI (development only) ────────────────────────
 if (env.NODE_ENV === 'development') {
