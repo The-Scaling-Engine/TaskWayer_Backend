@@ -471,10 +471,13 @@ model ProjectSlackConfig {
   dailyEnabled      Boolean @default(true)
   weeklyEnabled     Boolean @default(true)
   managerWebhookUrl String?
-  memberWebhookUrl  String?
+  memberWebhookUrl  String? // stored; reserved for Phase 8 task/member notifications
   dailyTime         String  @default("18:00")
   weeklyDay         Int     @default(5)
   weeklyTime        String  @default("17:00")
+  timezone          String  @default("UTC")
+  lastDailySentKey  String? // idempotency key e.g. "2026-06-03" — set before send
+  lastWeeklySentKey String? // idempotency key e.g. "2026-W23"   — set before send
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 

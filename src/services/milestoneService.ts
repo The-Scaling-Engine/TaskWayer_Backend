@@ -235,64 +235,60 @@ export const getTimeline = async (projectId: string, requesterId: string) => {
 
 export const checkAndUpdateCompletion = async (milestoneId: string, projectId: string): Promise<void> => {
   try {
-    const milestone = await milestoneRepository.findById(milestoneId);
+    const [milestone, tasks] = await Promise.all([
+      milestoneRepository.findById(milestoneId),
+      taskRepository.findByMilestone(milestoneId),
+    ]);
+
     if (!milestone) {
       logger.warn({ milestoneId }, 'checkAndUpdateCompletion: milestone not found');
       return;
     }
 
-    const tasks = await taskRepository.findByMilestone(milestoneId);
-    logger.info({ milestoneId, taskCount: tasks.length, statuses: tasks.map(t => t.status), milestoneStatus: milestone.status }, 'checkAndUpdateCompletion: evaluating');
-
     if (tasks.length === 0) return; // empty milestone → never auto-complete
 
     const allDone = tasks.every(t => t.status === 'done' || t.status === 'cancelled');
 
-    if (allDone && milestone.status !== MilestoneStatus.COMPLETED) {
-      logger.info({ milestoneId }, 'checkAndUpdateCompletion: marking COMPLETED');
-      const updated = await milestoneRepository.update(milestoneId, {
-        status: MilestoneStatus.COMPLETED,
-        completedAt: new Date(),
-      });
-      // Notify OWNER + MANAGER only (V4 §6)
-      void (async () => {
-        try {
-          const managerIds = await projectRepository.getManagerAndOwnerIds(projectId);
-          await Promise.all(
-            managerIds.map(userId =>
-              notificationService.createNotification({
-                userId,
-                type:       'MILESTONE_COMPLETED',
-                title:      'Milestone completed',
-                message:    `Milestone "${milestone.title}" has been completed.`,
-                payload:    { projectId, milestoneId },
-                entityType: 'milestone',
-                entityId:   milestoneId,
-              })
-            )
-          );
-        } catch (_) {}
-      })();
-      // Activity log (V4 §8) — fire-and-forget, no actorId for system-triggered events
-      void logProjectActivity({
-        projectId,
-        actorId:  null, // system-triggered, no human actor
-        action:   'MILESTONE_COMPLETED',
-        metadata: { milestoneId, milestoneTitle: milestone.title },
-      });
-      emitPlanningUpdated(projectId, { type: 'milestone_completed', updatedAt: updated.updatedAt });
-    } else if (!allDone && milestone.status === MilestoneStatus.COMPLETED) {
-      const updated = await milestoneRepository.update(milestoneId, {
-        status: MilestoneStatus.ACTIVE,
-        completedAt: null,
-      });
-      emitPlanningUpdated(projectId, { type: 'milestone_crud', updatedAt: updated.updatedAt });
+    if (allDone) {
+      const transitioned = await milestoneRepository.markCompletedIfActive(milestoneId);
+      if (transitioned) {
+        // Notify OWNER + MANAGER only — fire only when transition actually occurred
+        void (async () => {
+          try {
+            const managerIds = await projectRepository.getManagerAndOwnerIds(projectId);
+            await Promise.all(
+              managerIds.map(userId =>
+                notificationService.createNotification({
+                  userId,
+                  type:       'MILESTONE_COMPLETED',
+                  title:      'Milestone completed',
+                  message:    `Milestone "${milestone.title}" has been completed.`,
+                  payload:    { projectId, milestoneId },
+                  entityType: 'milestone',
+                  entityId:   milestoneId,
+                })
+              )
+            );
+          } catch (_) {}
+        })();
+        void logProjectActivity({
+          projectId,
+          actorId:  null,
+          action:   'MILESTONE_COMPLETED',
+          metadata: { milestoneId, milestoneTitle: milestone.title },
+        });
+        emitPlanningUpdated(projectId, { type: 'milestone_completed', updatedAt: new Date() });
+      }
+      // else: concurrent update already completed it — skip notifications entirely
     } else {
-      // milestone stays ACTIVE — progress changed, notify FE to recalculate badges
-      emitPlanningUpdated(projectId, { type: 'task_milestone_changed', updatedAt: new Date() });
+      const reopened = await milestoneRepository.markActiveIfCompleted(milestoneId);
+      if (reopened) {
+        emitPlanningUpdated(projectId, { type: 'milestone_crud', updatedAt: new Date() });
+      } else {
+        emitPlanningUpdated(projectId, { type: 'task_milestone_changed', updatedAt: new Date() });
+      }
     }
   } catch (err) {
-    // Non-blocking — auto-complete failure must not break the task update
     logger.warn({ err, milestoneId, projectId }, 'checkAndUpdateCompletion failed');
   }
 };

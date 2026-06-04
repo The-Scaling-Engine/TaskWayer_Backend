@@ -378,6 +378,9 @@ export interface IMilestoneRepository {
   delete(id: string): Promise<void>;
   reorder(items: { id: string; order: number }[], projectId: string): Promise<void>;
   reorderTasks(milestoneId: string, orderedIds: string[]): Promise<void>;
+  // Atomic conditional transitions — prevent duplicate notifications on concurrent updates
+  markCompletedIfActive(id: string): Promise<boolean>;
+  markActiveIfCompleted(id: string): Promise<boolean>;
 }
 
 // ─── Repository Interfaces ────────────────────────────────────

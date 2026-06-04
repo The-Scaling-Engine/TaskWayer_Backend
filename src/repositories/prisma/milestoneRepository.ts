@@ -1,5 +1,5 @@
 import prisma from '../../config/prisma';
-import { Milestone } from '@prisma/client';
+import { Milestone, MilestoneStatus } from '@prisma/client';
 import { CreateMilestoneData, UpdateMilestoneData, IMilestoneRepository, PlanningMilestoneItem, TimelineMilestoneRaw } from '../interfaces';
 
 const creatorProfileSelect = {
@@ -111,5 +111,21 @@ export const milestoneRepository: IMilestoneRepository = {
         prisma.task.update({ where: { id }, data: { milestoneOrder: index } })
       )
     );
+  },
+
+  async markCompletedIfActive(id: string): Promise<boolean> {
+    const result = await prisma.milestone.updateMany({
+      where: { id, status: MilestoneStatus.ACTIVE },
+      data: { status: MilestoneStatus.COMPLETED, completedAt: new Date() },
+    });
+    return result.count > 0;
+  },
+
+  async markActiveIfCompleted(id: string): Promise<boolean> {
+    const result = await prisma.milestone.updateMany({
+      where: { id, status: MilestoneStatus.COMPLETED },
+      data: { status: MilestoneStatus.ACTIVE, completedAt: null },
+    });
+    return result.count > 0;
   },
 };

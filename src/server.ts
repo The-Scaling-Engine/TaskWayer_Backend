@@ -32,8 +32,7 @@ import { initSocket, getIO } from './socket/index';
 import prisma from './config/prisma';
 import { sendError } from './utils/apiResponse';
 import { startDeadlineNotificationJob } from './jobs/deadlineNotificationJob';
-import { startDailyDigestJob } from './jobs/dailyDigestJob';
-import { startWeeklyDigestJob } from './jobs/weeklyDigestJob';
+import { startSlackCronJob } from './jobs/slackCronJob';
 
 const app = express();
 
@@ -156,8 +155,7 @@ initSocket(httpServer);
 
 // ─── Background jobs ──────────────────────────────────────────
 startDeadlineNotificationJob();
-startDailyDigestJob();
-startWeeklyDigestJob();
+startSlackCronJob();
 
 // ─── Graceful shutdown ────────────────────────────────────────
 let isShuttingDown = false;
