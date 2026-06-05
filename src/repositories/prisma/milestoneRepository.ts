@@ -90,7 +90,7 @@ export const milestoneRepository: IMilestoneRepository = {
       include: {
         tasks: {
           where: { parentTaskId: null },
-          select: { status: true, deadline: true },
+          select: { status: true, deadline: true, assignedTo: true },
         },
       },
     });

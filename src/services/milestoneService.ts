@@ -1,4 +1,5 @@
 import { MilestoneStatus } from '@prisma/client';
+import prisma from '../config/prisma';
 import { milestoneRepository } from '../repositories/prisma/milestoneRepository';
 import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
 import { projectRepository, MANAGER_ROLES } from '../repositories/prisma/projectRepository';
@@ -195,6 +196,20 @@ export const getTimeline = async (projectId: string, requesterId: string) => {
   const rows = await milestoneRepository.findForTimeline(projectId);
   const now  = new Date();
 
+  const allAssigneeIds = [...new Set(
+    rows.flatMap(m => m.tasks.map(t => t.assignedTo).filter((id): id is string => id != null))
+  )];
+  const profileMap = new Map<string, { name: string | null; avatar: string | null }>();
+  if (allAssigneeIds.length > 0) {
+    const profiles = await prisma.profile.findMany({
+      where: { mongoId: { in: allAssigneeIds } },
+      select: { mongoId: true, name: true, avatar: true },
+    });
+    for (const p of profiles) {
+      if (p.mongoId) profileMap.set(p.mongoId, { name: p.name, avatar: p.avatar });
+    }
+  }
+
   const milestones = rows.map(m => {
     const total    = m.tasks.length;
     const done     = m.tasks.filter(t => t.status === 'done' || t.status === 'cancelled').length;
@@ -205,6 +220,16 @@ export const getTimeline = async (projectId: string, requesterId: string) => {
       .map(t => t.deadline)
       .filter((d): d is Date => d != null)
       .map(d => d.getTime());
+
+    const seenIds = new Set<string>();
+    const assignees: { name: string; avatar: string | null }[] = [];
+    for (const t of m.tasks) {
+      if (t.assignedTo && !seenIds.has(t.assignedTo)) {
+        seenIds.add(t.assignedTo);
+        const p = profileMap.get(t.assignedTo);
+        if (p) assignees.push({ name: p.name ?? 'Unknown', avatar: p.avatar ?? null });
+      }
+    }
 
     return {
       id:           m.id,
@@ -218,6 +243,7 @@ export const getTimeline = async (projectId: string, requesterId: string) => {
       taskCount:    total,
       earliestTaskDeadline: taskDeadlines.length > 0 ? new Date(Math.min(...taskDeadlines)) : null,
       latestTaskDeadline:   taskDeadlines.length > 0 ? new Date(Math.max(...taskDeadlines)) : null,
+      assignees,
     };
   });
 

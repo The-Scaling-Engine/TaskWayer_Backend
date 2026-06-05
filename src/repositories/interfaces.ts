@@ -365,7 +365,7 @@ export interface TimelineMilestoneRaw {
   status: MilestoneStatus;
   completedAt: Date | null;
   createdAt: Date;
-  tasks: Array<{ status: string; deadline: Date | null }>;
+  tasks: Array<{ status: string; deadline: Date | null; assignedTo: string | null }>;
 }
 
 export interface IMilestoneRepository {
