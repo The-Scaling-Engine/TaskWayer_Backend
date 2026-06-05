@@ -474,6 +474,7 @@ export interface ITaskRepository {
   delete(id: string): Promise<void>;
   deleteManyByParentId(parentId: string): Promise<number>;
   deleteManyByParentIdFromDate(parentId: string, fromDate: Date): Promise<number>;
+  updateManyByParentId(parentId: string, data: { recurrenceEndDate?: Date | null }): Promise<number>;
   count(profileId: string): Promise<number>;
   statsByStatus(profileId: string): Promise<TaskStatsResult>;
 }

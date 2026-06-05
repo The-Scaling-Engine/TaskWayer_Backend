@@ -339,6 +339,14 @@ export class PrismaTaskRepository implements ITaskRepository {
     return result.count;
   }
 
+  async updateManyByParentId(parentId: string, data: { recurrenceEndDate?: Date | null }): Promise<number> {
+    const result = await prisma.task.updateMany({
+      where: { recurrenceParentId: parentId },
+      data,
+    });
+    return result.count;
+  }
+
   // ─────────────────────────────────────────────────
   // AGGREGATION
   // ─────────────────────────────────────────────────

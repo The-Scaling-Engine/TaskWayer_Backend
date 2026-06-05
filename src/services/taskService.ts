@@ -518,6 +518,33 @@ export class TaskService {
 
     const updated = await this.taskRepo.update(task.id, data);
 
+    // When recurrenceEndDate changes on any recurring task (parent or child),
+    // propagate the new end date to the root parent and purge instances that
+    // now fall outside the new boundary. Child instances carry their own
+    // recurrenceEndDate copy; the root parent is the authoritative source for
+    // sibling cleanup since deleteManyByParentIdFromDate queries by parentId.
+    if (input.recurrenceEndDate !== undefined && task.isRecurring) {
+      const rootId = task.recurrenceParentId ?? task.id;
+      const newEndDate = data.recurrenceEndDate ?? null;
+
+      if (task.recurrenceParentId) {
+        // Propagate new end date up to the root parent so it stays consistent
+        await this.taskRepo.update(task.recurrenceParentId, { recurrenceEndDate: newEndDate });
+      }
+
+      // Sync recurrenceEndDate on all remaining sibling instances so every
+      // child reflects the same end date regardless of which one was edited
+      await this.taskRepo.updateManyByParentId(rootId, { recurrenceEndDate: newEndDate });
+
+      if (newEndDate !== null) {
+        // Purge uncompleted instances scheduled after the new end date
+        await this.taskRepo.deleteManyByParentIdFromDate(
+          rootId,
+          new Date(newEndDate.getTime() + 1),
+        );
+      }
+    }
+
     // Emit realtime to all subscribers of this task room
     realtimeService.emitTaskUpdated(task.id, {
       taskId: task.id,
