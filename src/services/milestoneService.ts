@@ -202,11 +202,11 @@ export const getTimeline = async (projectId: string, requesterId: string) => {
   const profileMap = new Map<string, { name: string | null; avatar: string | null }>();
   if (allAssigneeIds.length > 0) {
     const profiles = await prisma.profile.findMany({
-      where: { mongoId: { in: allAssigneeIds } },
-      select: { mongoId: true, name: true, avatar: true },
+      where: { id: { in: allAssigneeIds } },
+      select: { id: true, name: true, avatar: true },
     });
     for (const p of profiles) {
-      if (p.mongoId) profileMap.set(p.mongoId, { name: p.name, avatar: p.avatar });
+      profileMap.set(p.id, { name: p.name, avatar: p.avatar });
     }
   }
 
