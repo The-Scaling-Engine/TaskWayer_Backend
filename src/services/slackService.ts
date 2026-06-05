@@ -19,12 +19,21 @@ export async function sendSlackMessage(webhookUrl: string, blocks: SlackBlock[])
 
 // ─── Helpers ──────────────────────────────────────────────────
 
+const RAW_FRONTEND_URL = (process.env.FRONTEND_URL ?? '').trim().replace(/\/$/, '');
+const FRONTEND_URL = RAW_FRONTEND_URL.startsWith('http') ? RAW_FRONTEND_URL : `https://${RAW_FRONTEND_URL}`;
+
 function formatDate(d: Date, tz = 'Asia/Ho_Chi_Minh'): string {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: tz });
 }
 
-function taskLine(title: string, suffix = ''): string {
-  return `• ${title}${suffix}`;
+function statusEmoji(status: string): string {
+  if (status === 'done')  return '✅';
+  if (status === 'doing') return '⚡';
+  return '⭕';
+}
+
+function taskLink(projectId: string, taskId: string, title: string): string {
+  return `<${FRONTEND_URL}/dashboard/projects/${projectId}/tasks?task=${taskId}|${title}>`;
 }
 
 function daysAgo(deadline: Date, now: Date): string {
@@ -100,12 +109,15 @@ export async function buildEnrichedDailyDigestBlocks(
     ? { columnId: { notIn: doneColumnIds } }
     : {};
 
-  const [project, completedToday, overdue, updatedToday] = await Promise.all([
+  const COMPLETED_LIMIT = 15;
+  const UPDATED_LIMIT   = 10;
+  const OVERDUE_LIMIT   = 10;
+
+  const [project, completedRaw, overdueRaw, updatedRaw] = await Promise.all([
     prisma.project.findUnique({
       where: { id: projectId },
       select: { name: true },
     }),
-    // Completed = explicit completedAt OR dragged to a done column today
     prisma.task.findMany({
       where: {
         projectId,
@@ -117,9 +129,9 @@ export async function buildEnrichedDailyDigestBlocks(
           }] : []),
         ],
       },
-      select: { title: true, assignedTo: true },
+      select: { id: true, title: true, assignedTo: true },
       orderBy: { updatedAt: 'desc' },
-      take: 15,
+      take: COMPLETED_LIMIT + 1,
     }),
     prisma.task.findMany({
       where: {
@@ -128,9 +140,9 @@ export async function buildEnrichedDailyDigestBlocks(
         status: { not: 'done' },
         ...notInDone,
       },
-      select: { title: true, deadline: true, priority: true, assignedTo: true },
+      select: { id: true, title: true, deadline: true, priority: true, assignedTo: true },
       orderBy: { deadline: 'asc' },
-      take: 10,
+      take: OVERDUE_LIMIT + 1,
     }),
     prisma.task.findMany({
       where: {
@@ -140,11 +152,18 @@ export async function buildEnrichedDailyDigestBlocks(
         status: { not: 'done' },
         ...notInDone,
       },
-      select: { title: true, status: true, assignedTo: true, inProgressAt: true },
+      select: { id: true, title: true, status: true, assignedTo: true, inProgressAt: true },
       orderBy: { updatedAt: 'desc' },
-      take: 10,
+      take: UPDATED_LIMIT + 1,
     }),
   ]);
+
+  const completedToday = completedRaw.slice(0, COMPLETED_LIMIT);
+  const completedMore  = completedRaw.length > COMPLETED_LIMIT ? completedRaw.length - COMPLETED_LIMIT : 0;
+  const overdue        = overdueRaw.slice(0, OVERDUE_LIMIT);
+  const overdueMore    = overdueRaw.length > OVERDUE_LIMIT ? overdueRaw.length - OVERDUE_LIMIT : 0;
+  const updatedToday   = updatedRaw.slice(0, UPDATED_LIMIT);
+  const updatedMore    = updatedRaw.length > UPDATED_LIMIT ? updatedRaw.length - UPDATED_LIMIT : 0;
 
   if (!project) return [];
 
@@ -178,11 +197,14 @@ export async function buildEnrichedDailyDigestBlocks(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*✅ Completed Today (${completedToday.length})*\n${
-          completedToday.map(t => taskLine(t.title, `   ${by(t.assignedTo)}`)).join('\n')
+        text: `*✅ Completed Today (${completedToday.length}${completedMore > 0 ? '+' : ''})*\n${
+          completedToday.map(t => `• ${taskLink(projectId, t.id, t.title)}   ${by(t.assignedTo)}`).join('\n')
         }`,
       },
     });
+    if (completedMore > 0) {
+      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `_...and ${completedMore}+ more completed tasks. <${FRONTEND_URL}/dashboard/projects/${projectId}/tasks|View all>_` }] });
+    }
   } else {
     blocks.push({ type: 'section', text: { type: 'mrkdwn', text: '*✅ Completed Today*\n_None_' } });
   }
@@ -194,16 +216,19 @@ export async function buildEnrichedDailyDigestBlocks(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*🔄 Updated Today (${updatedToday.length})*\n${
+        text: `*🔄 Updated Today (${updatedToday.length}${updatedMore > 0 ? '+' : ''})*\n${
           updatedToday.map(t => {
             const dur = t.inProgressAt
               ? ` • ${Math.max(1, Math.floor((date.getTime() - t.inProgressAt.getTime()) / 86_400_000))}d`
               : '';
-            return taskLine(t.title, `   [${t.status}]${dur} • ${by(t.assignedTo)}`);
+            return `• ${statusEmoji(t.status)} ${taskLink(projectId, t.id, t.title)}${dur} • ${by(t.assignedTo)}`;
           }).join('\n')
         }`,
       },
     });
+    if (updatedMore > 0) {
+      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `_...and ${updatedMore}+ more. <${FRONTEND_URL}/dashboard/projects/${projectId}/tasks|View all>_` }] });
+    }
     blocks.push({ type: 'divider' });
   }
 
@@ -212,21 +237,24 @@ export async function buildEnrichedDailyDigestBlocks(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*⚠️ Overdue (${overdue.length})*\n${
+        text: `*⚠️ Overdue (${overdue.length}${overdueMore > 0 ? '+' : ''})*\n${
           overdue.map(t => {
             const age      = t.deadline ? ` — ${daysAgo(t.deadline, date)}` : '';
             const priority = ` • ${t.priority.toUpperCase()}`;
             const assignee = ` • ${by(t.assignedTo)}`;
-            return taskLine(t.title, `${age}${priority}${assignee}`);
+            return `• 🚨 ${taskLink(projectId, t.id, t.title)}${age}${priority}${assignee}`;
           }).join('\n')
         }`,
       },
     });
+    if (overdueMore > 0) {
+      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `_...and ${overdueMore}+ more overdue tasks. <${FRONTEND_URL}/dashboard/projects/${projectId}/tasks|View all>_` }] });
+    }
   }
 
   blocks.push({
     type: 'context',
-    elements: [{ type: 'mrkdwn', text: `Generated by Wayer Tasks · ${formatDate(date, timezone)}` }],
+    elements: [{ type: 'mrkdwn', text: `Generated by Wayer Tasks · ${formatDate(date, timezone)} · <${FRONTEND_URL}/dashboard/projects/${projectId}/tasks|Open Board>` }],
   });
 
   return blocks;
@@ -245,7 +273,11 @@ export async function buildEnrichedWeeklyDigestBlocks(
     ? { columnId: { notIn: doneColumnIds } }
     : {};
 
-  const [project, completedWeek, overdue, created] = await Promise.all([
+  const COMPLETED_W_LIMIT = 20;
+  const OVERDUE_W_LIMIT   = 10;
+  const CREATED_W_LIMIT   = 15;
+
+  const [project, completedRaw, overdueRaw, createdRaw] = await Promise.all([
     prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
     prisma.task.findMany({
       where: {
@@ -258,9 +290,9 @@ export async function buildEnrichedWeeklyDigestBlocks(
           }] : []),
         ],
       },
-      select: { title: true, assignedTo: true },
+      select: { id: true, title: true, assignedTo: true },
       orderBy: { updatedAt: 'desc' },
-      take: 20,
+      take: COMPLETED_W_LIMIT + 1,
     }),
     prisma.task.findMany({
       where: {
@@ -269,9 +301,9 @@ export async function buildEnrichedWeeklyDigestBlocks(
         status: { not: 'done' },
         ...notInDone,
       },
-      select: { title: true, deadline: true, priority: true, assignedTo: true },
+      select: { id: true, title: true, deadline: true, priority: true, assignedTo: true },
       orderBy: { deadline: 'asc' },
-      take: 10,
+      take: OVERDUE_W_LIMIT + 1,
     }),
     prisma.task.findMany({
       where: {
@@ -279,11 +311,18 @@ export async function buildEnrichedWeeklyDigestBlocks(
         createdAt: { gte: weekStart, lte: weekEnd },
         ...notInDone,
       },
-      select: { title: true, status: true, assignedTo: true },
+      select: { id: true, title: true, status: true, assignedTo: true },
       orderBy: { createdAt: 'desc' },
-      take: 15,
+      take: CREATED_W_LIMIT + 1,
     }),
   ]);
+
+  const completedWeek  = completedRaw.slice(0, COMPLETED_W_LIMIT);
+  const completedWMore = completedRaw.length > COMPLETED_W_LIMIT ? completedRaw.length - COMPLETED_W_LIMIT : 0;
+  const overdue        = overdueRaw.slice(0, OVERDUE_W_LIMIT);
+  const overdueWMore   = overdueRaw.length > OVERDUE_W_LIMIT ? overdueRaw.length - OVERDUE_W_LIMIT : 0;
+  const created        = createdRaw.slice(0, CREATED_W_LIMIT);
+  const createdMore    = createdRaw.length > CREATED_W_LIMIT ? createdRaw.length - CREATED_W_LIMIT : 0;
 
   if (!project) return [];
 
@@ -312,15 +351,20 @@ export async function buildEnrichedWeeklyDigestBlocks(
     { type: 'divider' },
   ];
 
-  blocks.push({
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: completedWeek.length > 0
-        ? `*✅ Completed This Week (${completedWeek.length})*\n${completedWeek.map(t => taskLine(t.title, `   ${by(t.assignedTo)}`)).join('\n')}`
-        : '*✅ Completed This Week*\n_None_',
-    },
-  });
+  if (completedWeek.length > 0) {
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*✅ Completed This Week (${completedWeek.length}${completedWMore > 0 ? '+' : ''})*\n${completedWeek.map(t => `• ${taskLink(projectId, t.id, t.title)}   ${by(t.assignedTo)}`).join('\n')}`,
+      },
+    });
+    if (completedWMore > 0) {
+      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `_...and ${completedWMore}+ more. <${FRONTEND_URL}/dashboard/projects/${projectId}/tasks|View all>_` }] });
+    }
+  } else {
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: '*✅ Completed This Week*\n_None_' } });
+  }
 
   blocks.push({ type: 'divider' });
 
@@ -329,9 +373,12 @@ export async function buildEnrichedWeeklyDigestBlocks(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*🆕 New Tasks This Week (${created.length})*\n${created.map(t => taskLine(t.title, `   [${t.status}] • ${by(t.assignedTo)}`)).join('\n')}`,
+        text: `*🆕 New Tasks This Week (${created.length}${createdMore > 0 ? '+' : ''})*\n${created.map(t => `• ${statusEmoji(t.status)} ${taskLink(projectId, t.id, t.title)}   ${by(t.assignedTo)}`).join('\n')}`,
       },
     });
+    if (createdMore > 0) {
+      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `_...and ${createdMore}+ more new tasks. <${FRONTEND_URL}/dashboard/projects/${projectId}/tasks|View all>_` }] });
+    }
     blocks.push({ type: 'divider' });
   }
 
@@ -340,21 +387,24 @@ export async function buildEnrichedWeeklyDigestBlocks(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*⚠️ Overdue (${overdue.length})*\n${
+        text: `*⚠️ Overdue (${overdue.length}${overdueWMore > 0 ? '+' : ''})*\n${
           overdue.map(t => {
             const age      = t.deadline ? ` — ${daysAgo(t.deadline, weekEnd)}` : '';
             const priority = ` • ${t.priority.toUpperCase()}`;
             const assignee = ` • ${by(t.assignedTo)}`;
-            return taskLine(t.title, `${age}${priority}${assignee}`);
+            return `• 🚨 ${taskLink(projectId, t.id, t.title)}${age}${priority}${assignee}`;
           }).join('\n')
         }`,
       },
     });
+    if (overdueWMore > 0) {
+      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `_...and ${overdueWMore}+ more overdue. <${FRONTEND_URL}/dashboard/projects/${projectId}/tasks|View all>_` }] });
+    }
   }
 
   blocks.push({
     type: 'context',
-    elements: [{ type: 'mrkdwn', text: `Generated by Wayer Tasks · Weekly report` }],
+    elements: [{ type: 'mrkdwn', text: `Generated by Wayer Tasks · ${period} · <${FRONTEND_URL}/dashboard/projects/${projectId}/tasks|Open Board>` }],
   });
 
   return blocks;
