@@ -73,6 +73,19 @@ export function getWeekBoundsInTimezone(utcNow: Date, tz: string): { start: Date
   return { start, end };
 }
 
+// ─── Done-column helper ───────────────────────────────────────
+// Tasks dragged to a "Done" column have columnId updated but status/completedAt
+// may not be set if the move was a pure board drag. We detect done columns by
+// name (case-insensitive) so the digest excludes them from active sections.
+
+async function getDoneColumnIds(projectId: string): Promise<string[]> {
+  const cols = await prisma.boardColumn.findMany({
+    where: { projectId },
+    select: { id: true, name: true },
+  });
+  return cols.filter(c => /done/i.test(c.name)).map(c => c.id);
+}
+
 // ─── Enriched Daily Digest ────────────────────────────────────
 
 export async function buildEnrichedDailyDigestBlocks(
@@ -82,19 +95,39 @@ export async function buildEnrichedDailyDigestBlocks(
 ): Promise<SlackBlock[]> {
   const { start, end } = getDayBoundsInTimezone(date, timezone);
 
+  const doneColumnIds = await getDoneColumnIds(projectId);
+  const notInDone = doneColumnIds.length > 0
+    ? { columnId: { notIn: doneColumnIds } }
+    : {};
+
   const [project, completedToday, overdue, updatedToday] = await Promise.all([
     prisma.project.findUnique({
       where: { id: projectId },
       select: { name: true },
     }),
+    // Completed = explicit completedAt OR dragged to a done column today
     prisma.task.findMany({
-      where: { projectId, completedAt: { gte: start, lte: end } },
+      where: {
+        projectId,
+        OR: [
+          { completedAt: { gte: start, lte: end } },
+          ...(doneColumnIds.length > 0 ? [{
+            columnId: { in: doneColumnIds },
+            updatedAt: { gte: start, lte: end },
+          }] : []),
+        ],
+      },
       select: { title: true, assignedTo: true },
-      orderBy: { completedAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
       take: 15,
     }),
     prisma.task.findMany({
-      where: { projectId, deadline: { lt: date }, status: { not: 'done' } },
+      where: {
+        projectId,
+        deadline: { lt: date },
+        status: { not: 'done' },
+        ...notInDone,
+      },
       select: { title: true, deadline: true, priority: true, assignedTo: true },
       orderBy: { deadline: 'asc' },
       take: 10,
@@ -105,6 +138,7 @@ export async function buildEnrichedDailyDigestBlocks(
         updatedAt: { gte: start, lte: end },
         completedAt: null,
         status: { not: 'done' },
+        ...notInDone,
       },
       select: { title: true, status: true, assignedTo: true, inProgressAt: true },
       orderBy: { updatedAt: 'desc' },
@@ -206,22 +240,45 @@ export async function buildEnrichedWeeklyDigestBlocks(
   weekEnd: Date,
   timezone: string,
 ): Promise<SlackBlock[]> {
+  const doneColumnIds = await getDoneColumnIds(projectId);
+  const notInDone = doneColumnIds.length > 0
+    ? { columnId: { notIn: doneColumnIds } }
+    : {};
+
   const [project, completedWeek, overdue, created] = await Promise.all([
     prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
     prisma.task.findMany({
-      where: { projectId, completedAt: { gte: weekStart, lte: weekEnd } },
+      where: {
+        projectId,
+        OR: [
+          { completedAt: { gte: weekStart, lte: weekEnd } },
+          ...(doneColumnIds.length > 0 ? [{
+            columnId: { in: doneColumnIds },
+            updatedAt: { gte: weekStart, lte: weekEnd },
+          }] : []),
+        ],
+      },
       select: { title: true, assignedTo: true },
-      orderBy: { completedAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
       take: 20,
     }),
     prisma.task.findMany({
-      where: { projectId, deadline: { lt: weekEnd }, status: { not: 'done' } },
+      where: {
+        projectId,
+        deadline: { lt: weekEnd },
+        status: { not: 'done' },
+        ...notInDone,
+      },
       select: { title: true, deadline: true, priority: true, assignedTo: true },
       orderBy: { deadline: 'asc' },
       take: 10,
     }),
     prisma.task.findMany({
-      where: { projectId, createdAt: { gte: weekStart, lte: weekEnd } },
+      where: {
+        projectId,
+        createdAt: { gte: weekStart, lte: weekEnd },
+        ...notInDone,
+      },
       select: { title: true, status: true, assignedTo: true },
       orderBy: { createdAt: 'desc' },
       take: 15,
