@@ -4,6 +4,9 @@ import { sendSuccess, sendError } from '../utils/apiResponse';
 import { notifyTaskAssigned } from '../services/notificationService';
 import logger from '../config/logger';
 
+const RAW_FE = (process.env.FRONTEND_URL ?? '').trim().replace(/\/$/, '');
+const FRONTEND_URL = RAW_FE.startsWith('http') ? RAW_FE : `https://${RAW_FE}`;
+
 type EmojiMappings = Record<string, string>;
 
 export const handleSlackEmojiTask = async (req: Request, res: Response): Promise<void> => {
@@ -83,19 +86,24 @@ export const handleSlackEmojiTask = async (req: Request, res: Response): Promise
       resolvedColumnId = firstCol?.id ?? null;
     }
 
-    // ── 6. Create task ────────────────────────────────────────────
-    const task = await prisma.task.create({
-      data: {
-        title: trimmedTitle,
-        status: 'todo',
-        projectId: config.projectId,
-        columnId: resolvedColumnId,
-        milestoneId: milestoneId ?? null,
-        assignedTo: assigneeProfileId,
-        // profileId = system/webhook — use assignee as actor context
-        profileId: assigneeProfileId,
-      },
-    });
+    // ── 6. Create task + fetch assignee name in parallel ─────────
+    const [task, assigneeProfile] = await Promise.all([
+      prisma.task.create({
+        data: {
+          title: trimmedTitle,
+          status: 'todo',
+          projectId: config.projectId,
+          columnId: resolvedColumnId,
+          milestoneId: milestoneId ?? null,
+          assignedTo: assigneeProfileId,
+          profileId: assigneeProfileId,
+        },
+      }),
+      prisma.profile.findUnique({
+        where: { id: assigneeProfileId },
+        select: { name: true },
+      }),
+    ]);
 
     // ── 7. Notify assignee (fire-and-forget) ─────────────────────
     void notifyTaskAssigned({
@@ -112,7 +120,8 @@ export const handleSlackEmojiTask = async (req: Request, res: Response): Promise
     sendSuccess(res, 201, {
       data: {
         task,
-        taskUrl: `/projects/${config.projectId}/board`,
+        assigneeName: assigneeProfile?.name ?? null,
+        taskUrl: `${FRONTEND_URL}/dashboard/projects/${config.projectId}/tasks?task=${task.id}`,
       },
     });
   } catch (err) {
