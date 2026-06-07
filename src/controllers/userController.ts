@@ -92,15 +92,19 @@ export const searchUsers = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
+    const isUsernameSearch = q.startsWith('@');
+    const term = isUsernameSearch ? q.slice(1) : q;
+
+    const whereFilter = isUsernameSearch
+      ? { username: { contains: term, mode: 'insensitive' as const } }
+      : { OR: [
+          { name:  { contains: term, mode: 'insensitive' as const } },
+          { email: { contains: term, mode: 'insensitive' as const } },
+        ] };
+
     const users = await prisma.profile.findMany({
-      where: {
-        status: { not: 'BANNED' },
-        OR: [
-          { name:  { contains: q, mode: 'insensitive' } },
-          { email: { contains: q, mode: 'insensitive' } },
-        ],
-      },
-      select: { id: true, email: true, name: true, avatar: true },
+      where: { status: { not: 'BANNED' }, ...whereFilter },
+      select: { id: true, email: true, name: true, avatar: true, username: true },
       take: limit,
       orderBy: { name: 'asc' },
     });
