@@ -174,6 +174,31 @@ export const addDepartmentMember = async (req: AuthRequest, res: Response): Prom
   }
 };
 
+export const bulkAddDepartmentMembers = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const departmentId = req.params['departmentId'] as string;
+    const actorId = req.user!.prismaId;
+    const { members } = req.body as { members: { userId: string; role?: string }[] };
+    if (!Array.isArray(members) || members.length === 0) {
+      sendError(res, req, 400, 'VALIDATION_ERROR', 'members array is required and must not be empty');
+      return;
+    }
+    const result = await membershipService.bulkAddMembers(
+      actorId, departmentId,
+      members.map(m => ({ userId: m.userId, ...(m.role ? { role: m.role as import('@prisma/client').DepartmentMemberRole } : {}) }))
+    );
+    const message = result.added > 0 ? `${result.added} member(s) added` : 'All selected users are already members';
+    res.status(201).json({ success: true, message, data: result });
+  } catch (error) {
+    if (error instanceof departmentService.ServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'bulkAddDepartmentMembers failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 export const removeDepartmentMember = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const departmentId = req.params['departmentId'] as string;
