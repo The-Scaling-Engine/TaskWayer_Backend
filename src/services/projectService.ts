@@ -494,6 +494,94 @@ export const unlinkDepartment = async (
   });
 };
 
+export const bulkAddMembers = async (
+  projectId: string,
+  requesterId: string,
+  members: { profileId: string; role?: ProjectMemberRole }[]
+): Promise<{ added: number; skipped: number }> => {
+  await assertProjectManager(projectId, requesterId);
+
+  const assignableRoles: ProjectMemberRole[] = [
+    ProjectMemberRole.MANAGER,
+    ProjectMemberRole.MEMBER,
+    ProjectMemberRole.VIEWER,
+  ];
+
+  const existingIds = await projectRepository.getMemberIds(projectId);
+  const existingSet = new Set(existingIds);
+
+  const [requester, project] = await Promise.all([
+    profileRepo.findById(requesterId),
+    projectRepository.findById(projectId),
+  ]);
+  const actorName   = requester?.name ?? requester?.email ?? 'Someone';
+  const projectName = project?.name ?? 'a project';
+
+  let added = 0;
+  let skipped = 0;
+
+  for (const { profileId, role = ProjectMemberRole.MEMBER } of members) {
+    if (!assignableRoles.includes(role)) { skipped++; continue; }
+    if (existingSet.has(profileId)) { skipped++; continue; }
+
+    const target = await profileRepo.findById(profileId);
+    if (!target) { skipped++; continue; }
+
+    await projectRepository.addMember(projectId, profileId, role);
+    existingSet.add(profileId);
+    added++;
+
+    void notificationService.createNotification({
+      userId:     profileId,
+      type:       'PROJECT_MEMBER_JOINED',
+      title:      `You've been added to "${projectName}"`,
+      message:    `${actorName} added you to project "${projectName}" as ${role}.`,
+      payload:    { projectId, actorId: requesterId, role },
+      entityType: 'project',
+      entityId:   projectId,
+    }).catch(err => logger.error({ err, context: 'bulkAddMembers:notification', projectId, profileId }, 'Fire-and-forget failed'));
+  }
+
+  if (added > 0) {
+    await logProjectActivity({
+      projectId,
+      actorId:  requesterId,
+      action:   'PROJECT_MEMBER_ADDED',
+      metadata: { bulk: true, count: added },
+    });
+  }
+
+  return { added, skipped };
+};
+
+export const getLinkedDeptMembers = async (
+  projectId: string,
+  requesterId: string
+): Promise<{ dept: { id: string; name: string }; members: { id: string; name: string | null; email: string; avatar: string | null; username: string | null }[] }[]> => {
+  await assertProjectMember(projectId, requesterId);
+
+  const links = await prisma.projectDepartment.findMany({
+    where: { projectId },
+    include: { department: { select: { id: true, name: true } } },
+  });
+  if (links.length === 0) return [];
+
+  const result = await Promise.all(
+    links.map(async (link) => {
+      const rows = await prisma.departmentMember.findMany({
+        where:   { departmentId: link.departmentId, status: 'ACTIVE' },
+        include: { member: { select: { id: true, name: true, email: true, avatar: true, username: true } } },
+      });
+      return {
+        dept:    { id: link.department.id, name: link.department.name },
+        members: rows.map(r => r.member),
+      };
+    })
+  );
+
+  return result;
+};
+
 export const importDepartmentMembers = async (
   projectId: string,
   requesterId: string,
