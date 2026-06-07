@@ -10,6 +10,7 @@ import {
 import {
   listDepartmentMembers,
   addDepartmentMember,
+  bulkAddDepartmentMembers,
   removeDepartmentMember,
   changeMemberRole,
   transferOwnership,
@@ -53,6 +54,9 @@ router.use('/:departmentId', attachDepartmentContext);
 
 // GET    /api/departments/:departmentId/members
 router.get('/:departmentId/members', requireDepartmentAccess, validateRequest({ query: getMembersQuerySchema }), listDepartmentMembers);
+
+// POST   /api/departments/:departmentId/members/bulk  (must be before /:departmentId/members)
+router.post('/:departmentId/members/bulk', departmentWriteLimiter, requireDepartmentAdmin, bulkAddDepartmentMembers);
 
 // POST   /api/departments/:departmentId/members
 router.post('/:departmentId/members', departmentWriteLimiter, requireDepartmentAdmin, validateRequest({ body: addMemberSchema }), addDepartmentMember);
