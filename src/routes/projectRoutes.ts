@@ -18,6 +18,8 @@ import {
   unlinkDepartment,
   getDepartments,
   importDepartmentMembers,
+  bulkAddMembers,
+  getLinkedDeptMembers,
 } from '../controllers/projectController';
 import boardColumnRoutes from './boardColumnRoutes';
 import milestoneRoutes from './milestoneRoutes';
@@ -50,6 +52,12 @@ router.get('/:id/members', getMembers);
 
 // POST   /api/projects/:id/members/import-department  (must be before /:id/members)
 router.post('/:id/members/import-department', importDepartmentMembers);
+
+// POST   /api/projects/:id/members/bulk  (must be before /:id/members)
+router.post('/:id/members/bulk', bulkAddMembers);
+
+// GET    /api/projects/:id/linked-department-members
+router.get('/:id/linked-department-members', getLinkedDeptMembers);
 
 // POST   /api/projects/:id/members
 router.post('/:id/members', addMember);
