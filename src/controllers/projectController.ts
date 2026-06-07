@@ -247,3 +247,37 @@ export const importDepartmentMembers = async (req: AuthRequest, res: Response): 
     handleError(res, req, error, 'importDepartmentMembers');
   }
 };
+
+export const bulkAddMembers = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const requesterId = req.user!.id;
+    const projectId   = req.params['id'] as string;
+    const { members } = req.body as { members: { profileId: string; role?: string }[] };
+    if (!Array.isArray(members) || members.length === 0) {
+      sendError(res, req, 400, 'VALIDATION_ERROR', 'members array is required and must not be empty');
+      return;
+    }
+    const result = await projectService.bulkAddMembers(
+      projectId,
+      requesterId,
+      members.map(m => ({
+        profileId: m.profileId,
+        ...(m.role ? { role: m.role as ProjectMemberRole } : {}),
+      }))
+    );
+    res.status(201).json({ success: true, message: `${result.added} member(s) added`, data: result });
+  } catch (error) {
+    handleError(res, req, error, 'bulkAddMembers');
+  }
+};
+
+export const getLinkedDeptMembers = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const requesterId = req.user!.id;
+    const projectId   = req.params['id'] as string;
+    const data = await projectService.getLinkedDeptMembers(projectId, requesterId);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    handleError(res, req, error, 'getLinkedDeptMembers');
+  }
+};
