@@ -121,6 +121,67 @@ export const addMember = async (
   return membership;
 };
 
+// ─── Bulk Add Members ─────────────────────────────────────────
+
+export const bulkAddMembers = async (
+  actorId: string,
+  departmentId: string,
+  members: { userId: string; role?: DepartmentMemberRole }[]
+): Promise<{ added: number; skipped: number }> => {
+  const dept = await departmentRepo.findById(departmentId);
+  if (!dept) throw new ServiceError('Department not found', 404);
+
+  const actorProfile = await profileRepo.findById(actorId);
+  const isGlobalAdmin = actorProfile?.role === 'ADMIN';
+
+  let actorMembership: DepartmentMember | null = null;
+  if (!isGlobalAdmin) {
+    actorMembership = await membershipRepo.findByUserAndDepartment(actorId, departmentId);
+    if (!actorMembership || actorMembership.status !== 'ACTIVE') {
+      throw new ServiceError('You are not a member of this department', 403);
+    }
+    if (!['OWNER', 'ADMIN'].includes(actorMembership.role)) {
+      throw new ServiceError('Only OWNER or ADMIN can add members', 403);
+    }
+  }
+
+  let added = 0;
+  let skipped = 0;
+  const actorName = actorProfile?.name ?? actorProfile?.email ?? 'An admin';
+
+  for (const { userId, role = 'MEMBER' } of members) {
+    if (role === 'OWNER') { skipped++; continue; }
+    if (!isGlobalAdmin && actorMembership?.role === 'ADMIN' && role === 'ADMIN') { skipped++; continue; }
+
+    try {
+      const existing = await membershipRepo.findByUserAndDepartment(userId, departmentId);
+      if (existing?.status === 'ACTIVE') { skipped++; continue; }
+
+      let membership: DepartmentMember;
+      if (existing) {
+        membership = await prisma.departmentMember.update({ where: { id: existing.id }, data: { role, status: 'ACTIVE' } });
+      } else {
+        membership = await prisma.departmentMember.create({ data: { userId, departmentId, role, invitedBy: actorId } });
+      }
+
+      void activityLogRepo.create({ actorUserId: actorId, departmentId, entityType: 'membership', entityId: membership.id, action: 'member.added', metadata: { targetUserId: userId, role } });
+      void notificationService.createNotification({
+        userId,
+        type: 'DEPT_MEMBER_JOINED',
+        title: 'You have been added to a department',
+        message: `${actorName} added you to "${dept.name}" as ${role}.`,
+        payload: { departmentId, actorId, role },
+        entityType: 'department',
+        entityId: departmentId,
+      }).catch(err => logger.error({ err, context: 'bulkAddMembers notification' }, 'Fire-and-forget failed'));
+
+      added++;
+    } catch { skipped++; }
+  }
+
+  return { added, skipped };
+};
+
 // ─── Admin-level Add (bypasses RBAC check) ───────────────────
 
 export const adminAddMember = async (
