@@ -564,8 +564,15 @@ export class TaskService {
 
     // Auto-complete / re-open milestone — fire-and-forget so HTTP response is not blocked;
     // checkAndUpdateCompletion emits planning:updated on all paths when it finishes
-    if (data.status !== undefined && task.milestoneId && task.projectId && !task.parentTaskId) {
-      void checkAndUpdateCompletion(task.milestoneId, task.projectId);
+    if (task.projectId && !task.parentTaskId) {
+      // Old milestone: affected by status change or task being removed/moved away
+      if (task.milestoneId && (data.status !== undefined || data.milestoneId !== undefined)) {
+        void checkAndUpdateCompletion(task.milestoneId, task.projectId);
+      }
+      // New milestone: task moved into it — must reopen if it was COMPLETED
+      if (data.milestoneId && data.milestoneId !== task.milestoneId) {
+        void checkAndUpdateCompletion(data.milestoneId as string, task.projectId);
+      }
     }
 
     // Notify new assignee (fire-and-forget)
@@ -802,5 +809,8 @@ export class TaskService {
 
     await this.taskRepo.delete(task.id);
 
+    if (task.milestoneId && task.projectId && !task.parentTaskId) {
+      void checkAndUpdateCompletion(task.milestoneId, task.projectId);
+    }
   }
 }
