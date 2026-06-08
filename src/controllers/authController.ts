@@ -17,7 +17,7 @@ const buildResetPasswordEmail = (resetLink: string): string => `<!DOCTYPE html>
 
         <tr>
           <td style="background:linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%);border-radius:16px 16px 0 0;padding:28px 40px;text-align:center;">
-            <span style="font-size:22px;font-weight:800;color:#ffffff;">&#128274; Task Wayer</span>
+            <span style="font-size:22px;font-weight:800;color:#ffffff;">&#128274; Wayer Ops</span>
           </td>
         </tr>
 
@@ -26,7 +26,7 @@ const buildResetPasswordEmail = (resetLink: string): string => `<!DOCTYPE html>
             <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;">Password Reset</p>
             <h1 style="margin:0 0 20px;font-size:26px;font-weight:800;color:#111827;">Reset your password</h1>
             <p style="margin:0 0 28px;font-size:15px;color:#374151;line-height:1.7;">
-              We received a request to reset your <strong style="color:#2563eb;">Task Wayer</strong> password.<br><br>
+              We received a request to reset your <strong style="color:#2563eb;">Wayer Ops</strong> password.<br><br>
               Click the button below to choose a new password. If you didn't request this, you can safely ignore this email — your account is still secure.
             </p>
 
@@ -58,7 +58,7 @@ const buildResetPasswordEmail = (resetLink: string): string => `<!DOCTYPE html>
         <tr>
           <td style="background:#f9fafb;border:1px solid #dbeafe;border-top:0;border-radius:0 0 16px 16px;padding:22px 40px;text-align:center;">
             <p style="margin:0;font-size:12px;color:#9ca3af;">
-              You received this because a password reset was requested for your <strong>Task Wayer</strong> account.<br>
+              You received this because a password reset was requested for your <strong>Wayer Ops</strong> account.<br>
               If you didn't request this, you can safely ignore this email.
             </p>
           </td>
@@ -97,7 +97,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     sendEmail({
       email,
-      subject: 'Reset your Task Wayer password',
+      subject: 'Reset your Wayer Ops password',
       message: `Reset your password here: ${resetLink}`,
       html: buildResetPasswordEmail(resetLink),
     }).catch((err: unknown) =>

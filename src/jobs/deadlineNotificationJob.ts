@@ -134,7 +134,7 @@ function buildDeadlineEmailHtml(
         </a>
       </div>
       <p style="margin-top:24px;color:#718096;font-size:13px;">
-        You are receiving this because you have an upcoming task deadline on TasksWayer.
+        You are receiving this because you have an upcoming task deadline on Wayer Ops.
       </p>
     </div>
   `;

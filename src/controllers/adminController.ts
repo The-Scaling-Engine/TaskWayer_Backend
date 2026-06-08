@@ -17,7 +17,7 @@ const buildInviteEmail = (inviteLink: string): string => `<!DOCTYPE html>
       <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;">
         <tr>
           <td style="background:linear-gradient(135deg,#10BA41 0%,#047857 100%);border-radius:16px 16px 0 0;padding:28px 40px;text-align:center;">
-            <span style="font-size:22px;font-weight:800;color:#ffffff;">&#10003; TasksWayero</span>
+            <span style="font-size:22px;font-weight:800;color:#ffffff;">&#10003; Wayer Ops</span>
           </td>
         </tr>
         <tr>
@@ -25,7 +25,7 @@ const buildInviteEmail = (inviteLink: string): string => `<!DOCTYPE html>
             <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;">Invitation</p>
             <h1 style="margin:0 0 20px;font-size:26px;font-weight:800;color:#111827;">You've been invited!</h1>
             <p style="margin:0 0 28px;font-size:15px;color:#374151;line-height:1.7;">
-              An administrator has created an account for you on <strong style="color:#059669;">TasksWayero</strong>.<br><br>
+              An administrator has created an account for you on <strong style="color:#059669;">Wayer Ops</strong>.<br><br>
               Click the button below to set up your password and get started.
             </p>
             <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
@@ -53,7 +53,7 @@ const buildInviteEmail = (inviteLink: string): string => `<!DOCTYPE html>
         <tr>
           <td style="background:#f9fafb;border:1px solid #d1fae5;border-top:0;border-radius:0 0 16px 16px;padding:22px 40px;text-align:center;">
             <p style="margin:0;font-size:12px;color:#9ca3af;">
-              You received this because an administrator invited you to <strong>TasksWayero</strong>.<br>
+              You received this because an administrator invited you to <strong>Wayer Ops</strong>.<br>
               If you didn't expect this, you can safely ignore this email.
             </p>
           </td>
@@ -243,8 +243,8 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
     // Send invite email via Resend HTTP API (same mechanism as deadline notifications)
     await sendEmail({
       email,
-      subject: 'You have been invited to TasksWayero',
-      message: `You have been invited to TasksWayero. Click here to set up your password: ${inviteLink}`,
+      subject: 'You have been invited to Wayer Ops',
+      message: `You have been invited to Wayer Ops. Click here to set up your password: ${inviteLink}`,
       html:    buildInviteEmail(inviteLink),
     });
 
@@ -304,8 +304,8 @@ export const resendInvite = async (req: AuthRequest, res: Response): Promise<voi
 
     await sendEmail({
       email:   profile.email,
-      subject: 'You have been invited to TasksWayero',
-      message: `You have been invited to TasksWayero. Click here to set up your password: ${data.properties.action_link}`,
+      subject: 'You have been invited to Wayer Ops',
+      message: `You have been invited to Wayer Ops. Click here to set up your password: ${data.properties.action_link}`,
       html:    buildInviteEmail(data.properties.action_link),
     });
 

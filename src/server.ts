@@ -135,7 +135,7 @@ app.get('/api/protected', protect, (req: AuthRequest, res: Response) => {
 
 // Health checks — excluded from rate limiting and logging noise
 app.get('/', (_req: Request, res: Response) => {
-  res.json({ message: 'Welcome to TasksWayer Backend API', status: 'online', version: '1.0.0' });
+  res.json({ message: 'Welcome to Wayer Ops Backend API', status: 'online', version: '1.0.0' });
 });
 
 app.get('/health', (_req: Request, res: Response) => {
