@@ -1,4 +1,5 @@
 import { Department } from '@prisma/client';
+import prisma from '../config/prisma';
 import { PrismaDepartmentRepository } from '../repositories/prisma/departmentRepository';
 import { PrismaMembershipRepository } from '../repositories/prisma/membershipRepository';
 import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
@@ -108,6 +109,56 @@ export const getLinkableDepartments = async (
     return all.map(d => ({ id: d.id, name: d.name }));
   }
   return departmentRepo.findByUserRole(profileId, ['OWNER', 'ADMIN']);
+};
+
+// ─── Linked Projects ─────────────────────────────────────────
+
+export interface LinkedProject {
+  id: string;
+  name: string;
+  description: string | null;
+  linkedAt: Date;
+  memberCount: number;
+  owner: { id: string; name: string | null; avatar: string | null } | null;
+}
+
+export const getLinkedProjects = async (
+  departmentId: string,
+  requesterId: string
+): Promise<LinkedProject[]> => {
+  const membership = await prisma.departmentMember.findFirst({
+    where: { departmentId, userId: requesterId, status: 'ACTIVE' },
+  });
+  const profile = await profileRepo.findById(requesterId);
+  if (!membership && profile?.role !== 'ADMIN') {
+    throw new ServiceError('You are not a member of this department', 403);
+  }
+
+  const links = await prisma.projectDepartment.findMany({
+    where: { departmentId, project: { deletedAt: null } },
+    include: {
+      project: {
+        include: {
+          members: {
+            where: { role: 'OWNER' },
+            include: { profile: { select: { id: true, name: true, avatar: true } } },
+            take: 1,
+          },
+          _count: { select: { members: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return links.map(l => ({
+    id:          l.project.id,
+    name:        l.project.name,
+    description: l.project.description,
+    linkedAt:    l.createdAt,
+    memberCount: l.project._count.members,
+    owner:       l.project.members[0]?.profile ?? null,
+  }));
 };
 
 // ─── Service Error ────────────────────────────────────────────

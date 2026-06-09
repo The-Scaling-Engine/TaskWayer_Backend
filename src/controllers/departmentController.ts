@@ -112,6 +112,24 @@ export const deleteDepartment = async (req: AuthRequest, res: Response): Promise
   }
 };
 
+// ─── Linked Projects ─────────────────────────────────────────
+
+export const getLinkedProjects = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const departmentId = req.params['departmentId'] as string;
+    const requesterId = req.user!.id;
+    const projects = await departmentService.getLinkedProjects(departmentId, requesterId);
+    res.status(200).json({ success: true, count: projects.length, data: projects });
+  } catch (error) {
+    if (error instanceof departmentService.ServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    logger.error({ err: error, requestId: req.requestId }, 'getLinkedProjects failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 // ─── Linkable Departments ────────────────────────────────────
 
 export const getLinkableDepartments = async (req: AuthRequest, res: Response): Promise<void> => {

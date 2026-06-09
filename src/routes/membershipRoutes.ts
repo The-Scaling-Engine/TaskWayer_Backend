@@ -15,6 +15,7 @@ import {
   changeMemberRole,
   transferOwnership,
   getLinkableDepartments,
+  getLinkedProjects,
 } from '../controllers/departmentController';
 import {
   sendInvitation,
@@ -86,6 +87,11 @@ router.get('/:departmentId/members/:userId/tasks', requireDepartmentAdmin, valid
 
 // GET /api/departments/:departmentId/members/:userId/time-tracking/active
 router.get('/:departmentId/members/:userId/time-tracking/active', requireDepartmentAdmin, getMemberActiveSession);
+
+// ─── Linked Projects ─────────────────────────────────────────
+
+// GET /api/departments/:departmentId/projects
+router.get('/:departmentId/projects', requireDepartmentAccess, getLinkedProjects);
 
 // ─── Invitations (department-scoped) ─────────────────────────
 
