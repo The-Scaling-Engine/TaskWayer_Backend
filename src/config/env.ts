@@ -18,6 +18,8 @@ const envSchema = z.object({
   // Resend email
   RESEND_API_KEY:             z.string().min(1, 'RESEND_API_KEY is required'),
   EMAIL_FROM:                 z.string().min(1, 'EMAIL_FROM is required'),
+  // Groq AI
+  GROQ_API_KEY:               z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
