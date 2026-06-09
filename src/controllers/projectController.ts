@@ -5,6 +5,7 @@ import { ProjectMemberRole, projectRepository } from '../repositories/prisma/pro
 import { ServiceError } from '../services/departmentService';
 import logger from '../config/logger';
 import { sendError, codeFor } from '../utils/apiResponse';
+import { extractTasksFromMarkdown } from '../services/aiService';
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -279,5 +280,55 @@ export const getLinkedDeptMembers = async (req: AuthRequest, res: Response): Pro
     res.status(200).json({ success: true, data });
   } catch (error) {
     handleError(res, req, error, 'getLinkedDeptMembers');
+  }
+};
+
+// ─── Import Tasks from Markdown (AI Draft) ────────────────────
+
+export const importTasksDraft = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const requesterId = req.user!.id;
+    const projectId = req.params['id'] as string;
+    const { markdown } = req.body as { markdown?: string };
+
+    if (!markdown?.trim()) {
+      sendError(res, req, 400, 'VALIDATION_ERROR', 'markdown is required');
+      return;
+    }
+
+    const member = await projectRepository.getMember(projectId, requesterId);
+    if (!member) {
+      sendError(res, req, 403, 'FORBIDDEN', 'You are not a member of this project');
+      return;
+    }
+
+    const tasks = await extractTasksFromMarkdown(markdown);
+    res.status(200).json({ success: true, data: tasks });
+  } catch (error) {
+    if (error instanceof Error) {
+      const raw = error.message;
+      let parsed: { error?: { message?: string; status?: string } } = {};
+      try { parsed = JSON.parse(raw); } catch { /* raw is plain text */ }
+      const geminiMsg = parsed.error?.message ?? raw;
+      const status = parsed.error?.status ?? '';
+
+      if (raw.includes('GROQ_API_KEY is not configured')) {
+        sendError(res, req, 503, 'AI_SERVICE_ERROR', raw);
+        return;
+      }
+      if (geminiMsg.toLowerCase().includes('invalid api key') || geminiMsg.toLowerCase().includes('api key')) {
+        sendError(res, req, 503, 'AI_KEY_INVALID', 'Groq API key invalid. Please check GROQ_API_KEY in .env.');
+        return;
+      }
+      if (geminiMsg.includes('rate limit') || geminiMsg.includes('quota') || status === 'RESOURCE_EXHAUSTED') {
+        sendError(res, req, 429, 'QUOTA_EXCEEDED', 'Groq API rate limit exceeded. Please try again later.');
+        return;
+      }
+      if (geminiMsg.includes('overloaded') || geminiMsg.includes('high demand') || status === 'UNAVAILABLE') {
+        sendError(res, req, 503, 'AI_SERVICE_UNAVAILABLE', 'AI service is temporarily overloaded. Please try again in a moment.');
+        return;
+      }
+    }
+    handleError(res, req, error, 'importTasksDraft');
   }
 };
