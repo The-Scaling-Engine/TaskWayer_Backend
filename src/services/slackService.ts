@@ -115,7 +115,7 @@ export async function buildEnrichedDailyDigestBlocks(
 
   const [project, completedRaw, overdueRaw, updatedRaw] = await Promise.all([
     prisma.project.findUnique({
-      where: { id: projectId },
+      where: { id: projectId, deletedAt: null },
       select: { name: true },
     }),
     prisma.task.findMany({
@@ -278,7 +278,7 @@ export async function buildEnrichedWeeklyDigestBlocks(
   const CREATED_W_LIMIT   = 15;
 
   const [project, completedRaw, overdueRaw, createdRaw] = await Promise.all([
-    prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+    prisma.project.findUnique({ where: { id: projectId, deletedAt: null }, select: { name: true } }),
     prisma.task.findMany({
       where: {
         projectId,
