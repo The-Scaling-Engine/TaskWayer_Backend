@@ -20,6 +20,7 @@ import {
   importDepartmentMembers,
   bulkAddMembers,
   getLinkedDeptMembers,
+  importTasksDraft,
 } from '../controllers/projectController';
 import boardColumnRoutes from './boardColumnRoutes';
 import milestoneRoutes from './milestoneRoutes';
@@ -94,6 +95,10 @@ router.delete('/:id/departments/:departmentId', unlinkDepartment);
 // ── Board Columns ─────────────────────────────────────────────
 // GET/POST/PATCH/DELETE /api/projects/:id/columns[/...]
 router.use('/:id/columns', boardColumnRoutes);
+
+// ── Import Tasks (AI Draft) ───────────────────────────────────
+// POST /api/projects/:id/tasks/import-draft
+router.post('/:id/tasks/import-draft', importTasksDraft);
 
 // ── Planning Tree ─────────────────────────────────────────────
 // GET /api/projects/:id/planning
