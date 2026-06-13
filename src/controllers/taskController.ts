@@ -9,6 +9,7 @@ import logger from '../config/logger';
 import { sendError, codeFor } from '../utils/apiResponse';
 import type { GetTasksQuery } from '../schemas/taskSchemas';
 import { getIO } from '../socket';
+import { breakdownTask } from '../services/aiService';
 
 const taskService = new TaskService(
   new PrismaTaskRepository(),
@@ -277,5 +278,22 @@ export const moveSubtask = async (req: AuthRequest, res: Response): Promise<void
     }
     logger.error({ err: error, requestId: req.requestId }, 'moveSubtask failed');
     sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const breakdownTaskHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const taskId = req.params['id'] as string;
+    const task = await taskService.getTaskForBreakdown(req.user!.prismaId, taskId);
+    const items = await breakdownTask(task.title, task.description ?? undefined);
+    res.status(200).json({ success: true, data: { items } });
+  } catch (error) {
+    if (error instanceof TaskServiceError) {
+      sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
+      return;
+    }
+    const message = error instanceof Error ? error.message : 'AI breakdown failed';
+    logger.error({ err: error, requestId: req.requestId }, 'breakdownTaskHandler failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', message);
   }
 };
