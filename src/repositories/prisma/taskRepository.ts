@@ -239,7 +239,7 @@ export class PrismaTaskRepository implements ITaskRepository {
     const now = new Date();
     const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const [statusGroups, overdueGroups, highPriorityGroups, nearDeadlineGroups] = await prisma.$transaction([
+    const [statusGroups, overdueGroups, highPriorityGroups, nearDeadlineGroups, estimatedHoursGroups] = await prisma.$transaction([
       prisma.task.groupBy({
         by: ['profileId', 'status'],
         where: { profileId: { in: memberIds }, projectId: { in: projectIds } },
@@ -260,11 +260,16 @@ export class PrismaTaskRepository implements ITaskRepository {
         where: { profileId: { in: memberIds }, projectId: { in: projectIds }, status: { not: 'done' }, deadline: { gte: now, lte: sevenDaysLater } },
         _count: { id: true },
       }),
+      prisma.task.groupBy({
+        by: ['profileId'],
+        where: { profileId: { in: memberIds }, projectId: { in: projectIds }, status: { not: 'done' }, estimatedHours: { not: null } },
+        _sum: { estimatedHours: true },
+      }),
     ]);
 
     const result = new Map<string, WorkloadTaskStats>();
     for (const id of memberIds) {
-      result.set(id, { total: 0, todo: 0, doing: 0, done: 0, overdue: 0, highPriority: 0, nearDeadline: 0 });
+      result.set(id, { total: 0, todo: 0, doing: 0, done: 0, overdue: 0, highPriority: 0, nearDeadline: 0, totalEstimatedHours: 0 });
     }
 
     for (const g of statusGroups) {
@@ -290,6 +295,11 @@ export class PrismaTaskRepository implements ITaskRepository {
     for (const g of nearDeadlineGroups) {
       const stats = result.get(g.profileId);
       if (stats !== undefined) stats.nearDeadline = g._count.id;
+    }
+
+    for (const g of estimatedHoursGroups) {
+      const stats = result.get(g.profileId);
+      if (stats !== undefined) stats.totalEstimatedHours = g._sum.estimatedHours ?? 0;
     }
 
     return result;
