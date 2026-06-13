@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
 import { taskWriteLimiter } from '../middleware/rateLimiter';
-import { createTask, getTasks, updateTask, deleteTask, getTaskStats, cancelRecurrence, cancelFromDate, bulkCreateTasks, listSubtasks, createSubtask, updateSubtask, deleteSubtask, moveSubtask } from '../controllers/taskController';
+import { createTask, getTasks, updateTask, deleteTask, getTaskStats, cancelRecurrence, cancelFromDate, bulkCreateTasks, listSubtasks, createSubtask, updateSubtask, deleteSubtask, moveSubtask, breakdownTaskHandler } from '../controllers/taskController';
 import { createTaskSchema, updateTaskSchema, getTasksQuerySchema, cancelRecurrenceSchema, cancelFromDateSchema, bulkCreateSchema, createSubtaskSchema, updateSubtaskSchema, moveSubtaskSchema, subtaskParamsSchema } from '../schemas/taskSchemas';
 import { uuidParamSchema } from '../schemas/commonSchemas';
 
@@ -31,6 +31,9 @@ router.post('/:id/cancel-recurrence', taskWriteLimiter, validateRequest({ params
 
 // POST /api/tasks/:id/cancel-from
 router.post('/:id/cancel-from', taskWriteLimiter, validateRequest({ params: uuidParamSchema, body: cancelFromDateSchema }), cancelFromDate);
+
+// POST /api/tasks/:id/breakdown — AI breakdown
+router.post('/:id/breakdown', taskWriteLimiter, validateRequest({ params: uuidParamSchema }), breakdownTaskHandler);
 
 // Subtask routes — must be before /:id DELETE to avoid collision
 router.get('/:id/subtasks', validateRequest({ params: uuidParamSchema }), listSubtasks);
