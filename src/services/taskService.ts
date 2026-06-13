@@ -325,12 +325,13 @@ export class TaskService {
     const profile       = await this.resolveProfile(profileId);
     const isGlobalAdmin = profile.role === 'ADMIN';
 
-    const memberships  = await this.membershipRepo.findUserMemberships(profileId);
+    const [memberships, projectIds] = await Promise.all([
+      this.membershipRepo.findUserMemberships(profileId),
+      projectRepository.getProjectIdsForMember(profileId),
+    ]);
     const departmentIds = memberships
       .filter(m => m.status === 'ACTIVE')
       .map(m => m.departmentId);
-
-    const projectIds = await projectRepository.getProjectIdsForMember(profileId);
 
     const scopeFilter = buildScopedTaskFilter(profileId, departmentIds, projectIds, isGlobalAdmin);
 
