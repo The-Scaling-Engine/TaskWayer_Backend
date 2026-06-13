@@ -517,20 +517,41 @@ export const bulkAddMembers = async (
   const actorName   = requester?.name ?? requester?.email ?? 'Someone';
   const projectName = project?.name ?? 'a project';
 
-  let added = 0;
   let skipped = 0;
 
+  // Pass 1: filter by role validity and existing membership
+  const candidates: { profileId: string; role: ProjectMemberRole }[] = [];
   for (const { profileId, role = ProjectMemberRole.MEMBER } of members) {
-    if (!assignableRoles.includes(role)) { skipped++; continue; }
-    if (existingSet.has(profileId)) { skipped++; continue; }
+    if (!assignableRoles.includes(role) || existingSet.has(profileId)) { skipped++; continue; }
+    candidates.push({ profileId, role });
+  }
 
-    const target = await profileRepo.findById(profileId);
-    if (!target) { skipped++; continue; }
+  if (candidates.length === 0) return { added: 0, skipped };
 
-    await projectRepository.addMember(projectId, profileId, role);
-    existingSet.add(profileId);
-    added++;
+  // Pass 2: validate all profiles in one query
+  const candidateIds = candidates.map(c => c.profileId);
+  const foundProfiles = await prisma.profile.findMany({
+    where: { id: { in: candidateIds } },
+    select: { id: true },
+  });
+  const validIdSet = new Set(foundProfiles.map(p => p.id));
+  const toAdd = candidates.filter(c => {
+    if (!validIdSet.has(c.profileId)) { skipped++; return false; }
+    return true;
+  });
 
+  if (toAdd.length === 0) return { added: 0, skipped };
+
+  // Pass 3: insert all in one statement
+  await prisma.projectMember.createMany({
+    data: toAdd.map(({ profileId, role }) => ({ projectId, profileId, role })),
+    skipDuplicates: true,
+  });
+
+  const added = toAdd.length;
+
+  // Fire-and-forget notifications
+  for (const { profileId, role } of toAdd) {
     void notificationService.createNotification({
       userId:     profileId,
       type:       'PROJECT_MEMBER_JOINED',
