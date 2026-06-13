@@ -38,6 +38,7 @@ export const mapPrismaTaskToResponseDTO = (
     milestoneId: task.milestoneId ?? null,
     milestoneOrder: task.milestoneOrder ?? null,
     parentTaskId: task.parentTaskId ?? null,
+    estimatedHours: task.estimatedHours ?? null,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     __v: 0,
