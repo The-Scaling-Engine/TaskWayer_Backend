@@ -223,6 +223,7 @@ export interface CreateTaskData {
   assignedBy?: string;
   parentTaskId?: string;
   milestoneId?: string;
+  estimatedHours?: number | null;
 }
 
 export interface UpdateTaskData {
@@ -245,6 +246,7 @@ export interface UpdateTaskData {
   milestoneOrder?: number | null;
   inProgressAt?: Date | null;
   parentTaskId?: string | null;
+  estimatedHours?: number | null;
 }
 
 export interface TaskFilterOptions {
@@ -304,6 +306,7 @@ export interface WorkloadTaskStats {
   overdue: number;
   highPriority: number;
   nearDeadline: number;
+  totalEstimatedHours: number;
 }
 
 export interface MemberTaskFilterOptions {
