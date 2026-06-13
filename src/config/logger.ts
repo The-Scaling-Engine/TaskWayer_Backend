@@ -18,6 +18,6 @@ const logger: pino.Logger<string> = isDev
         },
       },
     }) as pino.Logger<string>)
-  : (pino({ level: 'info' }) as pino.Logger<string>);
+  : (pino({ level: 'info' }, pino.destination({ sync: false })) as pino.Logger<string>);
 
 export default logger;
