@@ -795,6 +795,16 @@ export class TaskService {
     return mapPrismaTaskToResponseDTO({ ...updated, profile }, { name: profile.name, email: profile.email, avatar: profile.avatar });
   }
 
+  // ─── AI Breakdown ─────────────────────────────────────────────────────────
+
+  async getTaskForBreakdown(profileId: string, taskId: string): Promise<{ title: string; description?: string | null }> {
+    const task = await this.taskRepo.findByIdOrMongoId(taskId);
+    if (!task) throw new TaskServiceError('Task not found', 404);
+    const profile = await this.resolveProfile(profileId);
+    await this.resolveTaskPermission(task, profileId, profile, 'read');
+    return { title: task.title, description: task.description };
+  }
+
   // ─── Delete ───────────────────────────────────────────────────────────────
 
   async deleteTask(profileId: string, taskId: string): Promise<void> {
