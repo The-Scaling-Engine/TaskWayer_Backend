@@ -27,6 +27,7 @@ export interface MemberWorkload {
   role: DepartmentMemberRole;
   tasks: WorkloadTaskStats;
   hasActiveSession: boolean;
+  isOverloaded: boolean;
 }
 
 export interface DepartmentWorkloadResult {
@@ -41,9 +42,12 @@ export interface MemberActiveSessionResult {
   session: ActiveSessionWithTask | null;
 }
 
+const OVERLOAD_HOURS_THRESHOLD = 40;
+const OVERLOAD_TASKS_THRESHOLD = 8;
+
 const EMPTY_STATS: WorkloadTaskStats = {
   total: 0, todo: 0, doing: 0, done: 0,
-  overdue: 0, highPriority: 0, nearDeadline: 0,
+  overdue: 0, highPriority: 0, nearDeadline: 0, totalEstimatedHours: 0,
 };
 
 // ─── Service Functions ────────────────────────────────────────
@@ -62,13 +66,20 @@ export const getDepartmentWorkload = async (
     getActiveSessionsByProfileIds(profileIds),
   ]);
 
-  const result: MemberWorkload[] = members.map(m => ({
-    memberId: m.id,
-    profile: m.profile,
-    role: m.role,
-    tasks: workloadMap.get(m.userId) ?? EMPTY_STATS,
-    hasActiveSession: sessionsMap.has(m.userId),
-  }));
+  const result: MemberWorkload[] = members.map(m => {
+    const tasks = workloadMap.get(m.userId) ?? EMPTY_STATS;
+    const isOverloaded =
+      tasks.totalEstimatedHours > OVERLOAD_HOURS_THRESHOLD ||
+      tasks.doing > OVERLOAD_TASKS_THRESHOLD;
+    return {
+      memberId: m.id,
+      profile: m.profile,
+      role: m.role,
+      tasks,
+      hasActiveSession: sessionsMap.has(m.userId),
+      isOverloaded,
+    };
+  });
 
   return { members: result, total, page, limit };
 };
