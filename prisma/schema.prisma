@@ -241,6 +241,7 @@ model Task {
   parent         Task?       @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
   subtasks       Task[]      @relation("TaskSubtasks")
   inProgressAt   DateTime?
+  estimatedHours Float?
 
   @@index([profileId])
   @@index([status])
