@@ -65,6 +65,50 @@ Write a brief executive summary.`;
   }
 }
 
+const BREAKDOWN_PROMPT = `You are a task breakdown assistant. Given a task title and optional description, break it down into 3-7 concrete, actionable checklist items.
+
+Return a JSON object with an "items" array of strings. Each item must be:
+- A short, actionable sentence (verb + object)
+- Specific and implementable
+- At a similar level of granularity
+
+Rules:
+- Return 3-7 items maximum
+- No numbering or bullet prefixes in the strings
+- Return valid JSON only, no markdown fences`;
+
+export async function breakdownTask(title: string, description?: string): Promise<string[]> {
+  if (!env.GROQ_API_KEY) {
+    throw new Error('GROQ_API_KEY is not configured. Please add it to your .env file.');
+  }
+
+  const client = new Groq({ apiKey: env.GROQ_API_KEY });
+
+  const userMessage = description?.trim()
+    ? `Task: ${title}\nDetails: ${description}`
+    : `Task: ${title}`;
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: BREAKDOWN_PROMPT },
+        { role: 'user',   content: userMessage },
+      ],
+      temperature: 0.3,
+      max_tokens: 400,
+    });
+
+    const text = completion.choices[0]?.message?.content ?? '{}';
+    const parsed = JSON.parse(text) as { items?: string[] };
+    return (parsed.items ?? []).filter(Boolean);
+  } catch (err) {
+    logger.error({ err }, 'Groq breakdownTask failed');
+    throw err;
+  }
+}
+
 export async function extractTasksFromMarkdown(markdown: string): Promise<DraftTask[]> {
   if (!env.GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY is not configured. Please add it to your .env file.');
