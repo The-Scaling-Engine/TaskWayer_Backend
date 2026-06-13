@@ -25,6 +25,46 @@ Rules:
 - Do not invent information not present in the text
 - Return valid JSON only, no markdown fences`;
 
+export interface WeeklyDigestData {
+  projectName: string;
+  completedCount: number;
+  overdueCount: number;
+  newTasksCount: number;
+  topAssignees: string[];
+}
+
+const WEEKLY_SUMMARY_PROMPT = `You are a project management assistant. Write a concise 2-3 sentence executive summary of a project's weekly progress.
+Be direct and professional. Highlight wins, flag risks. Use plain language a non-technical manager can understand.
+Return only the summary text — no headers, no bullet points, no markdown fences.`;
+
+export async function generateWeeklySummary(data: WeeklyDigestData): Promise<string | null> {
+  if (!env.GROQ_API_KEY) return null;
+
+  const client = new Groq({ apiKey: env.GROQ_API_KEY });
+
+  const userMessage = `Project: ${data.projectName}
+This week: ${data.completedCount} task(s) completed, ${data.newTasksCount} new task(s) created, ${data.overdueCount} task(s) overdue.
+${data.topAssignees.length > 0 ? `Top contributors: ${data.topAssignees.join(', ')}.` : ''}
+Write a brief executive summary.`;
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: WEEKLY_SUMMARY_PROMPT },
+        { role: 'user',   content: userMessage },
+      ],
+      temperature: 0.4,
+      max_tokens: 200,
+    });
+
+    return completion.choices[0]?.message?.content?.trim() ?? null;
+  } catch (err) {
+    logger.warn({ err }, 'generateWeeklySummary failed — skipping AI block');
+    return null;
+  }
+}
+
 export async function extractTasksFromMarkdown(markdown: string): Promise<DraftTask[]> {
   if (!env.GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY is not configured. Please add it to your .env file.');
