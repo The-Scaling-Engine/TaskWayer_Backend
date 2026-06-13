@@ -176,9 +176,10 @@ async function gracefulShutdown(signal: string, exitCode: number): Promise<void>
   }, 10_000);
   forceExitTimeout.unref();
 
-  await new Promise<void>(resolve => httpServer.close(() => resolve()));
-
   try { getIO().close(); } catch { /* not initialized */ }
+
+  httpServer.closeAllConnections?.();
+  await new Promise<void>(resolve => httpServer.close(() => resolve()));
 
   try {
     await prisma.$disconnect();
