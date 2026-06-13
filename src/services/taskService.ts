@@ -40,6 +40,7 @@ export interface CreateTaskInput {
   recurrenceType?: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | null;
   recurrenceInterval?: number | null;
   recurrenceEndDate?: string | null;
+  estimatedHours?: number | null;
 }
 
 export interface UpdateTaskInput {
@@ -58,6 +59,7 @@ export interface UpdateTaskInput {
   assignedTo?: string | null;
   milestoneId?: string | null;
   milestoneOrder?: number | null;
+  estimatedHours?: number | null;
 }
 
 export interface CreateSubtaskInput {
@@ -215,6 +217,7 @@ export class TaskService {
       ...(input.recurrenceType     != null && { recurrenceType:     input.recurrenceType as RecurrenceType }),
       ...(input.recurrenceInterval != null && { recurrenceInterval: input.recurrenceInterval }),
       ...(input.recurrenceEndDate  != null && { recurrenceEndDate:  new Date(input.recurrenceEndDate) }),
+      ...(input.estimatedHours     != null && { estimatedHours:     input.estimatedHours }),
     });
 
     // Pre-generate all future instances so they appear on the calendar immediately
@@ -471,6 +474,7 @@ export class TaskService {
     if (input.recurrenceType     !== undefined) data.recurrenceType     = input.recurrenceType as RecurrenceType | null;
     if (input.recurrenceInterval !== undefined) data.recurrenceInterval = input.recurrenceInterval ?? null;
     if (input.recurrenceEndDate  !== undefined) data.recurrenceEndDate  = input.recurrenceEndDate ? new Date(input.recurrenceEndDate) : null;
+    if (input.estimatedHours     !== undefined) data.estimatedHours     = input.estimatedHours ?? null;
 
     // Atomic assignment update — always set all three fields together
     if (input.assignedTo !== undefined) {
