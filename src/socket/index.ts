@@ -46,6 +46,31 @@ function cleanupSocketCounters(socketId: string): void {
 
 // ─────────────────────────────────────────────────────────────
 
+// ─── Task presence (in-memory) ────────────────────────────────
+
+interface PresenceUser {
+  userId: string;
+  name: string;
+  avatar: string | null;
+  isEditing: boolean;
+  socketId: string;
+}
+
+// Map<taskId, Map<userId, PresenceUser>>
+const taskPresence = new Map<string, Map<string, PresenceUser>>();
+
+function broadcastPresence(taskId: string): void {
+  if (!io) return;
+  const users = taskPresence.get(taskId);
+  const activeUsers = users
+    ? Array.from(users.values()).map(({ socketId: _s, ...u }) => u)
+    : [];
+  logger.info({ taskId, userCount: activeUsers.length, userIds: activeUsers.map(u => u.userId) }, 'task:presence broadcast');
+  io.to(`task:${taskId}`).emit('task:presence', { taskId, activeUsers });
+}
+
+// ─────────────────────────────────────────────────────────────
+
 let io: SocketServer | null = null;
 
 export function initSocket(httpServer: HttpServer): SocketServer {
@@ -211,8 +236,71 @@ export function initSocket(httpServer: HttpServer): SocketServer {
       }
     });
 
+    // ─── Task presence ────────────────────────────────────────
+    socket.on('task:join', async (payload: { taskId: string; name?: string; avatar?: string | null }) => {
+      logger.info({ userId: user.prismaId, socketId: socket.id, payload }, 'task:join received');
+      if (!payload || typeof payload.taskId !== 'string' || !payload.taskId.trim()) return;
+      const { taskId, name = '', avatar = null } = payload;
+
+      await socket.join(`task:${taskId}`);
+
+      if (!taskPresence.has(taskId)) taskPresence.set(taskId, new Map());
+      taskPresence.get(taskId)!.set(user.prismaId, {
+        userId: user.prismaId,
+        name,
+        avatar,
+        isEditing: false,
+        socketId: socket.id,
+      });
+
+      broadcastPresence(taskId);
+      logger.info({ userId: user.prismaId, taskId }, 'task:join presence updated');
+    });
+
+    socket.on('task:leave', (payload: { taskId: string }) => {
+      if (!payload || typeof payload.taskId !== 'string') return;
+      const { taskId } = payload;
+
+      void socket.leave(`task:${taskId}`);
+
+      taskPresence.get(taskId)?.delete(user.prismaId);
+      if (taskPresence.get(taskId)?.size === 0) taskPresence.delete(taskId);
+
+      broadcastPresence(taskId);
+    });
+
+    socket.on('task:editing', (payload: { taskId: string; field: string }) => {
+      if (!payload || typeof payload.taskId !== 'string') return;
+      const { taskId } = payload;
+
+      const entry = taskPresence.get(taskId)?.get(user.prismaId);
+      if (!entry) return;
+
+      entry.isEditing = true;
+      broadcastPresence(taskId);
+
+      // Auto-clear editing flag after 3 s of inactivity
+      setTimeout(() => {
+        const e = taskPresence.get(taskId)?.get(user.prismaId);
+        if (e && e.socketId === socket.id) {
+          e.isEditing = false;
+          broadcastPresence(taskId);
+        }
+      }, 3000);
+    });
+
     socket.on('disconnect', (reason: string) => {
       cleanupSocketCounters(socket.id);
+
+      // Remove from all task presence maps
+      for (const [taskId, users] of taskPresence) {
+        if (users.get(user.prismaId)?.socketId === socket.id) {
+          users.delete(user.prismaId);
+          if (users.size === 0) taskPresence.delete(taskId);
+          else broadcastPresence(taskId);
+        }
+      }
+
       logger.info({ userId: user.prismaId, reason }, 'Socket disconnected');
     });
   });

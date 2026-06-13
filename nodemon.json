@@ -1,0 +1,5 @@
+{
+  "ext": "ts,js,json",
+  "ignore": ["node_modules", "dist"],
+  "watch": ["src"]
+}
