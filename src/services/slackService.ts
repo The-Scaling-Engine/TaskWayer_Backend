@@ -1,5 +1,6 @@
 import prisma from '../config/prisma';
 import logger from '../config/logger';
+import { generateWeeklySummary } from './aiService';
 
 type SlackBlock = Record<string, unknown>;
 
@@ -400,6 +401,35 @@ export async function buildEnrichedWeeklyDigestBlocks(
     if (overdueWMore > 0) {
       blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `_...and ${overdueWMore}+ more overdue. <${FRONTEND_URL}/dashboard/projects/${projectId}/tasks|View all>_` }] });
     }
+  }
+
+  const topAssignees = (() => {
+    const counts = new Map<string, number>();
+    for (const t of completedWeek) {
+      if (t.assignedTo && nameMap.has(t.assignedTo)) {
+        counts.set(t.assignedTo, (counts.get(t.assignedTo) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id]) => nameMap.get(id) ?? id);
+  })();
+
+  const aiSummary = await generateWeeklySummary({
+    projectName:    project.name,
+    completedCount: completedRaw.length,
+    overdueCount:   overdueRaw.length,
+    newTasksCount:  createdRaw.length,
+    topAssignees,
+  }).catch(() => null);
+
+  if (aiSummary) {
+    blocks.push({ type: 'divider' });
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `🤖 *AI Summary*\n${aiSummary}` },
+    });
   }
 
   blocks.push({
