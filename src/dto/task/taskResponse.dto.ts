@@ -34,6 +34,7 @@ export interface TaskResponseDTO {
   milestoneId: string | null;
   milestoneOrder: number | null;
   parentTaskId: string | null;
+  estimatedHours: number | null;
   subtaskProgress?: { completed: number; total: number };
   createdAt: Date;
   updatedAt: Date;
