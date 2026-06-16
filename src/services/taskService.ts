@@ -108,6 +108,7 @@ export interface GetTasksInput {
   assignedByMe?:   boolean;
   assignedToMe?:   boolean;
   projectId?:      string;
+  columnId?:       string;
 }
 
 // ─── Error ────────────────────────────────────────────────────────────────────
@@ -364,6 +365,7 @@ export class TaskService {
       }
       filter.projectId = query.projectId;
     }
+    if (query.columnId) filter.columnId = query.columnId;
 
     const sort: TaskSortOptions = {};
     if (query.sortBy) sort.sortBy = query.sortBy;

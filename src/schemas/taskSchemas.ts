@@ -111,5 +111,6 @@ export const getTasksQuerySchema = z.object({
   assignedByMe:   z.coerce.boolean().optional(),
   assignedToMe:   z.coerce.boolean().optional(),
   projectId:      z.string().uuid().optional(),
+  columnId:       z.string().optional(),
 });
 export type GetTasksQuery = z.infer<typeof getTasksQuerySchema>;
