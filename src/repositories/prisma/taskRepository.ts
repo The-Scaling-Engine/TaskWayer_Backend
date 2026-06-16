@@ -153,6 +153,19 @@ export class PrismaTaskRepository implements ITaskRepository {
       additionalFilters.projectId = filter.projectId;
     }
 
+    if (filter.columnId) {
+      // B-6: default column should also include tasks with no column assignment (null columnId)
+      const col = await prisma.boardColumn.findUnique({
+        where: { id: filter.columnId },
+        select: { isDefault: true },
+      });
+      if (col?.isDefault) {
+        additionalFilters.OR = [{ columnId: filter.columnId }, { columnId: null }];
+      } else {
+        additionalFilters.columnId = filter.columnId;
+      }
+    }
+
     if (filter.assignedByMe) {
       additionalFilters.assignedBy = profileId;
     }

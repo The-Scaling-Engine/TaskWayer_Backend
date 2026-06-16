@@ -57,7 +57,7 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
 
 export const getTasks = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { page, limit, status, priority, search, tag, sortBy, order, deadlineFrom, deadlineTo, createdFrom, createdTo, scheduledFrom, scheduledTo, personal, assignedByMe, assignedToMe, projectId } =
+    const { page, limit, status, priority, search, tag, sortBy, order, deadlineFrom, deadlineTo, createdFrom, createdTo, scheduledFrom, scheduledTo, personal, assignedByMe, assignedToMe, projectId, columnId } =
       res.locals.validated.query as GetTasksQuery;
 
     const query: GetTasksInput = { page, limit };
@@ -77,6 +77,7 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
     if (assignedByMe   !== undefined) query.assignedByMe   = assignedByMe;
     if (assignedToMe   !== undefined) query.assignedToMe   = assignedToMe;
     if (projectId      !== undefined) query.projectId      = projectId;
+    if (columnId       !== undefined) query.columnId       = columnId;
 
     const result = await taskService.getTasks(req.user!.prismaId, query);
     res.status(200).json(result);

@@ -264,6 +264,7 @@ export interface TaskFilterOptions {
   assignedByMe?:   boolean;
   assignedToMe?:   boolean;
   projectId?:      string;
+  columnId?:       string;
 }
 
 export interface TaskSortOptions {
