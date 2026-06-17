@@ -4,6 +4,7 @@ import { upload, uploadFile, handleMulterError } from '../controllers/uploadCont
 
 const router = Router();
 
-router.post('/', protect, upload.single('file'), uploadFile, handleMulterError);
+router.post('/', protect, upload.single('file'), uploadFile);
+router.use(handleMulterError);
 
 export default router;
