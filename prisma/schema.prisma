@@ -13,8 +13,7 @@ datasource db {
 enum Role {
   USER
   ADMIN
-  DEPT_MANAGER
-  DEPT_MEMBER
+  MANAGER
 }
 
 enum UserStatus {
