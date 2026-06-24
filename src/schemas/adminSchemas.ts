@@ -14,3 +14,8 @@ export const createUserSchema = z.object({
   email:    z.string().trim().email('Invalid email address').toLowerCase(),
 });
 export type CreateUserInput = z.infer<typeof createUserSchema>;
+
+export const changeUserRoleSchema = z.object({
+  role: z.enum(['USER', 'MANAGER']),
+});
+export type ChangeUserRoleInput = z.infer<typeof changeUserRoleSchema>;
