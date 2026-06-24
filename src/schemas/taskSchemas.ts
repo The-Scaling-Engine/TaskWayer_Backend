@@ -15,6 +15,7 @@ export const createTaskSchema = z.object({
   recurrenceType:     z.enum(['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']).optional().nullable(),
   recurrenceInterval: z.coerce.number().int().positive().max(365).nullable().optional(),
   recurrenceEndDate:  z.string().datetime({ offset: true }).nullable().optional(),
+  targetProfileId:    z.string().uuid('Invalid targetProfileId').optional(),
 }).superRefine((data, ctx) => {
   if (data.isRecurring) {
     if (!data.recurrenceType) {
@@ -107,10 +108,11 @@ export const getTasksQuerySchema = z.object({
   createdTo:      z.string().date().optional(),
   scheduledFrom:  z.string().date().optional(),
   scheduledTo:    z.string().date().optional(),
-  personal:       z.coerce.boolean().optional(),
-  assignedByMe:   z.coerce.boolean().optional(),
-  assignedToMe:   z.coerce.boolean().optional(),
-  projectId:      z.string().uuid().optional(),
-  columnId:       z.string().optional(),
+  personal:        z.coerce.boolean().optional(),
+  assignedByMe:    z.coerce.boolean().optional(),
+  assignedToMe:    z.coerce.boolean().optional(),
+  projectId:       z.string().uuid().optional(),
+  columnId:        z.string().optional(),
+  targetProfileId: z.string().uuid('Invalid targetProfileId').optional(),
 });
 export type GetTasksQuery = z.infer<typeof getTasksQuerySchema>;
