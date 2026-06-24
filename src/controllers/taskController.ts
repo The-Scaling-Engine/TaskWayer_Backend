@@ -10,6 +10,7 @@ import { sendError, codeFor } from '../utils/apiResponse';
 import type { GetTasksQuery } from '../schemas/taskSchemas';
 import { getIO } from '../socket';
 import { breakdownTask } from '../services/aiService';
+import prisma from '../config/prisma';
 
 const taskService = new TaskService(
   new PrismaTaskRepository(),
@@ -40,10 +41,24 @@ export const bulkCreateTasks = async (req: AuthRequest, res: Response): Promise<
 
 export const createTask = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const task = await taskService.createTask(
-      req.user!.prismaId,
-      res.locals.validated.body as CreateTaskInput
-    );
+    const body = res.locals.validated.body as CreateTaskInput & { targetProfileId?: string };
+    const { targetProfileId, ...taskInput } = body;
+
+    let profileId = req.user!.prismaId;
+
+    if (req.user!.role === 'ADMIN' && targetProfileId) {
+      const targetProfile = await prisma.profile.findUnique({
+        where: { id: targetProfileId },
+        select: { id: true },
+      });
+      if (!targetProfile) {
+        sendError(res, req, 404, 'NOT_FOUND', 'Target user not found');
+        return;
+      }
+      profileId = targetProfile.id;
+    }
+
+    const task = await taskService.createTask(profileId, taskInput as CreateTaskInput);
     res.status(201).json({ success: true, message: 'Task created successfully', data: task });
   } catch (error) {
     if (error instanceof TaskServiceError) {
@@ -57,7 +72,7 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
 
 export const getTasks = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { page, limit, status, priority, search, tag, sortBy, order, deadlineFrom, deadlineTo, createdFrom, createdTo, scheduledFrom, scheduledTo, personal, assignedByMe, assignedToMe, projectId, columnId } =
+    const { page, limit, status, priority, search, tag, sortBy, order, deadlineFrom, deadlineTo, createdFrom, createdTo, scheduledFrom, scheduledTo, personal, assignedByMe, assignedToMe, projectId, columnId, targetProfileId } =
       res.locals.validated.query as GetTasksQuery;
 
     const query: GetTasksInput = { page, limit };
@@ -79,7 +94,17 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
     if (projectId      !== undefined) query.projectId      = projectId;
     if (columnId       !== undefined) query.columnId       = columnId;
 
-    const result = await taskService.getTasks(req.user!.prismaId, query);
+    let profileId = req.user!.prismaId;
+
+    if (req.user!.role === 'ADMIN' && targetProfileId) {
+      const targetProfile = await prisma.profile.findUnique({
+        where: { id: targetProfileId },
+        select: { id: true },
+      });
+      if (targetProfile) profileId = targetProfile.id;
+    }
+
+    const result = await taskService.getTasks(profileId, query);
     res.status(200).json(result);
   } catch (error) {
     if (error instanceof TaskServiceError) {
