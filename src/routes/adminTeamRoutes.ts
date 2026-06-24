@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
-import { adminOnly } from '../middleware/adminMiddleware';
+import { requireManagerOrAdmin } from '../middleware/managerMiddleware';
 import { getTeamOverview, getTeamOverviewTasks } from '../controllers/adminTeamController';
 
 const router = Router();
 
-router.use(protect, adminOnly);
+router.use(protect, requireManagerOrAdmin);
 
 router.get('/overview', getTeamOverview);
 router.get('/overview/:profileId/tasks', getTeamOverviewTasks);
