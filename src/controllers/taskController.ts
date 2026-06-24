@@ -11,6 +11,7 @@ import type { GetTasksQuery } from '../schemas/taskSchemas';
 import { getIO } from '../socket';
 import { breakdownTask } from '../services/aiService';
 import prisma from '../config/prisma';
+import * as notificationService from '../services/notificationService';
 
 const taskService = new TaskService(
   new PrismaTaskRepository(),
@@ -45,8 +46,12 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
     const { targetProfileId, ...taskInput } = body;
 
     let profileId = req.user!.prismaId;
+    const actorId = req.user!.prismaId;
+    const isAssigning =
+      !!targetProfileId &&
+      (req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER');
 
-    if (req.user!.role === 'ADMIN' && targetProfileId) {
+    if (isAssigning) {
       const targetProfile = await prisma.profile.findUnique({
         where: { id: targetProfileId },
         select: { id: true },
@@ -60,6 +65,24 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
 
     const task = await taskService.createTask(profileId, taskInput as CreateTaskInput);
     res.status(201).json({ success: true, message: 'Task created successfully', data: task });
+
+    // Notify assignee via real-time socket (fire-and-forget)
+    if (isAssigning && profileId !== actorId) {
+      void (async () => {
+        const actor = await prisma.profile.findUnique({
+          where: { id: actorId },
+          select: { name: true },
+        });
+        void notificationService.notifyTaskAssigned({
+          assigneeId: profileId,
+          actorId,
+          actorName: actor?.name ?? null,
+          taskId: task._id,
+          taskTitle: task.title,
+          projectId: task.projectId ?? '',
+        });
+      })();
+    }
   } catch (error) {
     if (error instanceof TaskServiceError) {
       sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
@@ -96,12 +119,14 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
 
     let profileId = req.user!.prismaId;
 
-    if (req.user!.role === 'ADMIN' && targetProfileId) {
+    if (targetProfileId && (req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER')) {
       const targetProfile = await prisma.profile.findUnique({
         where: { id: targetProfileId },
         select: { id: true },
       });
-      if (targetProfile) profileId = targetProfile.id;
+      if (targetProfile) {
+        profileId = targetProfile.id;
+      }
     }
 
     const result = await taskService.getTasks(profileId, query);
