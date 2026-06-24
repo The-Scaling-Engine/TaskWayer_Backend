@@ -7,14 +7,14 @@ export interface CreateProfileData {
   name?: string;
   avatar?: string;
   passwordHash: string;
-  role?: 'USER' | 'ADMIN' | 'DEPT_MANAGER' | 'DEPT_MEMBER';
+  role?: 'USER' | 'ADMIN' | 'MANAGER';
   mongoId?: string;
 }
 
 export interface UpdateProfileData {
   name?: string;
   avatar?: string;
-  role?: 'USER' | 'ADMIN' | 'DEPT_MANAGER' | 'DEPT_MEMBER';
+  role?: 'USER' | 'ADMIN' | 'MANAGER';
   status?: 'ACTIVE' | 'BANNED';
   passwordHash?: string;
   passwordResetToken?: string | null;
