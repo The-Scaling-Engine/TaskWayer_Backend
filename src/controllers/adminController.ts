@@ -6,7 +6,7 @@ import { env } from '../config/env';
 import logger from '../config/logger';
 import { sendError } from '../utils/apiResponse';
 import sendEmail from '../utils/email';
-import type { GetUsersQuery, CreateUserInput } from '../schemas/adminSchemas';
+import type { GetUsersQuery, CreateUserInput, ChangeUserRoleInput } from '../schemas/adminSchemas';
 
 const buildInviteEmail = (inviteLink: string): string => `<!DOCTYPE html>
 <html>
@@ -267,6 +267,35 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
     if (profileId) await prisma.profile.delete({ where: { id: profileId } }).catch(() => {});
     if (supabaseUserId) await supabaseAdmin.auth.admin.deleteUser(supabaseUserId).catch(() => {});
     logger.error({ err: error, requestId: req.requestId }, 'createUser failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+export const changeUserRole = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const targetId = req.params['id'] as string;
+    const { role } = res.locals.validated.body as ChangeUserRoleInput;
+
+    if (targetId === req.user!.prismaId) {
+      sendError(res, req, 403, 'FORBIDDEN', 'Cannot change your own role');
+      return;
+    }
+
+    const target = await prisma.profile.findUnique({ where: { id: targetId }, select: { id: true, role: true } });
+    if (!target) {
+      sendError(res, req, 404, 'NOT_FOUND', 'User not found');
+      return;
+    }
+
+    if (target.role === 'ADMIN') {
+      sendError(res, req, 403, 'FORBIDDEN', 'Cannot change role of another admin');
+      return;
+    }
+
+    await prisma.profile.update({ where: { id: targetId }, data: { role } });
+    res.json({ success: true, message: `Role updated to ${role}` });
+  } catch (error) {
+    logger.error({ err: error, requestId: req.requestId }, 'changeUserRole failed');
     sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };
