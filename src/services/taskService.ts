@@ -28,6 +28,7 @@ import * as notificationService from './notificationService';
 export interface CreateTaskInput {
   title: string;
   description?: string;
+  milestoneId?: string | null;
   status?: 'todo' | 'doing' | 'done';
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
@@ -219,6 +220,7 @@ export class TaskService {
       ...(input.recurrenceInterval != null && { recurrenceInterval: input.recurrenceInterval }),
       ...(input.recurrenceEndDate  != null && { recurrenceEndDate:  new Date(input.recurrenceEndDate) }),
       ...(input.estimatedHours     != null && { estimatedHours:     input.estimatedHours }),
+      ...(input.milestoneId        != null && { milestoneId:        input.milestoneId }),
     });
 
     // Pre-generate all future instances so they appear on the calendar immediately
