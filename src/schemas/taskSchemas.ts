@@ -11,6 +11,8 @@ export const createTaskSchema = z.object({
   projectId:         z.string().uuid('Invalid projectId').optional(),
   columnId:          z.string().uuid('Invalid columnId').nullable().optional(),
   assignedTo:        z.string().uuid('Invalid assignedTo').nullable().optional(),
+  milestoneId:        z.string().uuid('Invalid milestoneId').nullable().optional(),
+  estimatedHours:     z.coerce.number().nonnegative().nullable().optional(),
   isRecurring:        z.boolean().default(false),
   recurrenceType:     z.enum(['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']).optional().nullable(),
   recurrenceInterval: z.coerce.number().int().positive().max(365).nullable().optional(),
