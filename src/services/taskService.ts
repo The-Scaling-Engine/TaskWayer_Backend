@@ -554,10 +554,18 @@ export class TaskService {
       }
     }
 
-    // Emit realtime to all subscribers of this task room
+    // Emit realtime to all subscribers of this task room. `patch` carries the
+    // resulting new values so subscribed clients can update in place instead of
+    // firing a full refetch. Only fields that appeared in the input are sent —
+    // untouched columns stay out of the payload.
+    const patch: Record<string, unknown> = {};
+    for (const key of Object.keys(data)) {
+      if (key in updated) patch[key] = (updated as Record<string, unknown>)[key];
+    }
     realtimeService.emitTaskUpdated(task.id, {
       taskId: task.id,
       updatedFields: Object.keys(data),
+      patch,
       updatedAt: updated.updatedAt,
     });
 

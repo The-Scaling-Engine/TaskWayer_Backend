@@ -144,17 +144,24 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
 export const updateTask = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const taskId = req.params['id'] as string;
+    const body = res.locals.validated.body as UpdateTaskInput;
     const updatedTask = await taskService.updateTask(
       req.user!.prismaId,
       taskId,
-      res.locals.validated.body as UpdateTaskInput
+      body,
     );
     res.status(200).json({ success: true, message: 'Task updated successfully', data: updatedTask });
 
-    getIO().to(`user:${req.user!.prismaId}`).emit('task:statusUpdated', {
-      taskId,
-      status: updatedTask.status,
-    });
+    // Multi-tab reorder signal — only fire when the update actually shifts
+    // where the task appears (column/status). Field-only edits (title, tags,
+    // priority, deadline...) reach other tabs via the task:updated delta and
+    // don't need a full refetch here.
+    if ('status' in body || 'columnId' in body || 'milestoneId' in body) {
+      getIO().to(`user:${req.user!.prismaId}`).emit('task:statusUpdated', {
+        taskId,
+        status: updatedTask.status,
+      });
+    }
   } catch (error) {
     if (error instanceof TaskServiceError) {
       sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);

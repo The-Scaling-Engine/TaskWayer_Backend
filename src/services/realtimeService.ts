@@ -76,6 +76,10 @@ export function emitNotification(userId: string, payload: NotificationPayload): 
 export interface TaskUpdatedPayload {
   taskId: string;
   updatedFields: string[];
+  // New field values for the keys in `updatedFields`. When present, subscribed
+  // clients patch in place instead of refetching. Absent for non-service-layer
+  // callers (backward-compat during rolling deploy).
+  patch?: Record<string, unknown>;
   updatedAt: Date;
 }
 
