@@ -39,6 +39,7 @@ const MIGRATIONS = [
   '20260604150000_add_webhook_secret_unique_index',
   '20260613142503_add_estimated_hours_to_task',
   '20260624000000_add_manager_role',
+  '20260705000000_add_perf_indexes',
 ];
 
 const isWin = process.platform === 'win32';
