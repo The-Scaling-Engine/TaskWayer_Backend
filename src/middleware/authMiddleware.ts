@@ -64,6 +64,16 @@ export function invalidateAuthCacheForToken(token: string): void {
   authCache.delete(token);
 }
 
+// Invalidate every cached entry belonging to a profile. Called by admin actions
+// that change auth-relevant state (ban, unban, role change) so the change takes
+// effect immediately instead of waiting for the TTL to expire — without this,
+// a banned user keeps hitting the API for up to TTL_MS.
+export function invalidateAuthCacheByProfileId(profileId: string): void {
+  for (const [token, entry] of authCache) {
+    if (entry.profile.id === profileId) authCache.delete(token);
+  }
+}
+
 export const protect = async (
   req: AuthRequest,
   res: Response,
@@ -138,11 +148,14 @@ export const protect = async (
       }).catch(err => logger.warn({ err }, 'supabaseId lazy-sync failed'));
     }
 
-    // Populate cache for subsequent requests in this token's TTL window
+    // Populate cache for subsequent requests in this token's TTL window.
+    // Write 'ACTIVE' (not the stale 'PENDING' we read) since the background
+    // update above is best-effort and the semantic status for this session is
+    // already ACTIVE — otherwise cached entries stay PENDING for the full TTL.
     writeCache(token, {
       supabaseUserId: supabaseUser.id,
       supabaseEmail:  supabaseUser.email,
-      profile,
+      profile: profile.status === 'PENDING' ? { ...profile, status: 'ACTIVE' } : profile,
     });
 
     req.user = {
