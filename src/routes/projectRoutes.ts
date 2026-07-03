@@ -26,6 +26,7 @@ import boardColumnRoutes from './boardColumnRoutes';
 import milestoneRoutes from './milestoneRoutes';
 import slackConfigRoutes from './slackConfigRoutes';
 import { getPlanningTree, getTimeline } from '../controllers/milestoneController';
+import { getProjectBoard } from '../controllers/projectBoardController';
 
 const router = Router();
 
@@ -40,6 +41,9 @@ router.get('/', getMyProjects);
 
 // GET    /api/projects/:id
 router.get('/:id', getProjectById);
+
+// GET    /api/projects/:id/board — aggregated columns + tasks-per-column
+router.get('/:id/board', getProjectBoard);
 
 // PATCH  /api/projects/:id
 router.patch('/:id', updateProject);
