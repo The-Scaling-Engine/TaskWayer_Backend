@@ -14,6 +14,7 @@ import { authLimiter } from './middleware/rateLimiter';
 import authRoutes from './routes/authRoutes';
 import taskRoutes from './routes/taskRoutes';
 import userRoutes from './routes/userRoutes';
+import meRoutes from './routes/meRoutes';
 import adminRoutes from './routes/adminRoutes';
 import adminTeamRoutes from './routes/adminTeamRoutes';
 import departmentRoutes from './routes/departmentRoutes';
@@ -109,6 +110,7 @@ app.use(requestTimeout);
 // ─── 8. Routes ────────────────────────────────────────────────
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/me', meRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/admin/team', adminTeamRoutes);
 app.use('/api/admin/departments', departmentRoutes);
