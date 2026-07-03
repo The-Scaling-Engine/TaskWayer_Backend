@@ -561,13 +561,11 @@ export class TaskService {
       updatedAt: updated.updatedAt,
     });
 
-    // Emit planning:updated when milestone assignment changes
-    if (data.milestoneId !== undefined && task.projectId) {
-      realtimeService.emitPlanningUpdated(task.projectId, { type: 'task_milestone_changed', updatedAt: updated.updatedAt });
-    }
-
-    // Always notify planning view immediately for any change to a milestone task
-    if (task.milestoneId && task.projectId && !task.parentTaskId) {
+    // Emit planning:updated at most once per update — either milestone assignment
+    // changed, or a milestone-attached parent task was modified.
+    const milestoneAssignmentChanged = data.milestoneId !== undefined && !!task.projectId;
+    const milestoneTaskModified      = !!task.milestoneId && !!task.projectId && !task.parentTaskId;
+    if (task.projectId && (milestoneAssignmentChanged || milestoneTaskModified)) {
       realtimeService.emitPlanningUpdated(task.projectId, { type: 'task_milestone_changed', updatedAt: updated.updatedAt });
     }
 
