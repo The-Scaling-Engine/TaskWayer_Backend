@@ -448,7 +448,12 @@ export type PlanningSubtaskItem = {
   createdAt: Date;
 };
 
-export type PlanningTaskItem = Task & {
+// Fields the planning tree omits on the wire because the frontend never renders
+// them. Keeping them in the type would let callers reach for values that are
+// actually undefined at runtime.
+type SlimTaskFields = Omit<Task, 'mongoId' | 'updatedAt' | 'assignedBy' | 'completedAt' | 'inProgressAt'>;
+
+export type PlanningTaskItem = SlimTaskFields & {
   subtasks: PlanningSubtaskItem[];
   profile?: CreatorProfileShape | null;
 };
@@ -457,7 +462,7 @@ export type PlanningMilestoneItem = Milestone & {
   tasks: PlanningTaskItem[];
 };
 
-export type UnassignedTaskItem = Task & {
+export type UnassignedTaskItem = SlimTaskFields & {
   profile?: CreatorProfileShape | null;
 };
 

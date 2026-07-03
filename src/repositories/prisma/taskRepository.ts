@@ -63,6 +63,13 @@ export class PrismaTaskRepository implements ITaskRepository {
         orderBy: { createdAt: 'desc' },
         skip,
         take,
+        omit: {
+          mongoId:      true,
+          updatedAt:    true,
+          assignedBy:   true,
+          completedAt:  true,
+          inProgressAt: true,
+        },
         include: { profile: { select: creatorProfileSelect } },
       }),
       prisma.task.count({ where }),

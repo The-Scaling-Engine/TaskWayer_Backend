@@ -55,6 +55,8 @@ export const milestoneRepository: IMilestoneRepository = {
   },
 
   async findPlanningTree(projectId: string): Promise<PlanningMilestoneItem[]> {
+    // Drop fields the planning tree never renders. Description is kept because
+    // the edit dialog reads it from the tree payload without a re-fetch.
     return prisma.milestone.findMany({
       where: { projectId },
       orderBy: { order: 'asc' },
@@ -62,6 +64,13 @@ export const milestoneRepository: IMilestoneRepository = {
         tasks: {
           where: { parentTaskId: null },
           orderBy: [{ milestoneOrder: 'asc' }, { createdAt: 'asc' }],
+          omit: {
+            mongoId:      true,
+            updatedAt:    true,
+            assignedBy:   true,
+            completedAt:  true,
+            inProgressAt: true,
+          },
           include: {
             subtasks: {
               orderBy: { createdAt: 'asc' },
