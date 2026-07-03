@@ -44,6 +44,9 @@ export const getBootstrap = async (req: AuthRequest, res: Response): Promise<voi
         where:   { userId: profileId, status: 'ACTIVE' },
         include: { department: true },
         orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
+      }).catch(err => {
+        logger.warn({ err, context: 'bootstrap:memberships' }, 'partial failure');
+        return [];
       }),
       notificationService.getUnreadCount(profileId).catch(err => {
         logger.warn({ err, context: 'bootstrap:getUnreadCount' }, 'partial failure');
