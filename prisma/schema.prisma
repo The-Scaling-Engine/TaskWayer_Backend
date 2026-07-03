@@ -159,6 +159,7 @@ model DepartmentMember {
   @@index([departmentId])
   @@index([userId])
   @@index([status])
+  @@index([userId, status, role])
   @@map("department_members")
 }
 
@@ -259,6 +260,9 @@ model Task {
   @@index([milestoneId])
   @@index([milestoneId, milestoneOrder])
   @@index([parentTaskId])
+  @@index([assignedTo])
+  @@index([assignedBy])
+  @@index([projectId, parentTaskId, milestoneId])
   @@map("tasks")
 }
 
@@ -302,6 +306,7 @@ model Notification {
   @@index([readAt])
   @@index([createdAt])
   @@index([userId, readAt, createdAt])
+  @@index([userId, type, entityId])
   @@map("notifications")
 }
 
