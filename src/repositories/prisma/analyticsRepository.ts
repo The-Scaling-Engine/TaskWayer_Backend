@@ -57,7 +57,7 @@ export async function getUserSummary(profileId: string): Promise<UserSummaryData
       prisma.task.groupBy({
         by: ['status'],
         where: { profileId },
-        _count: { status: true },
+        _count: { _all: true },
       }),
       prisma.task.count({
         where: {
@@ -83,7 +83,7 @@ export async function getUserSummary(profileId: string): Promise<UserSummaryData
 
   let total = 0, todo = 0, doing = 0, done = 0;
   for (const g of taskGroups) {
-    const c = g._count.status;
+    const c = g._count?._all ?? 0;
     total += c;
     if (g.status === 'todo')  todo  = c;
     if (g.status === 'doing') doing = c;
@@ -172,7 +172,7 @@ export async function getAdminCompletionStats(
     prisma.task.groupBy({
       by:    ['status'],
       where: { createdAt: { gte: start, lte: end } },
-      _count: { status: true },
+      _count: { _all: true },
     }),
   ]);
 
@@ -198,7 +198,7 @@ export async function getAdminCompletionStats(
 
   let todo = 0, doing = 0, done = 0;
   for (const g of statusGroups) {
-    const c = g._count.status;
+    const c = g._count?._all ?? 0;
     if (g.status === 'todo')  todo  = c;
     if (g.status === 'doing') doing = c;
     if (g.status === 'done')  done  = c;
