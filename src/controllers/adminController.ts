@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '../middleware/authMiddleware';
+import { AuthRequest, invalidateAuthCacheByProfileId } from '../middleware/authMiddleware';
 import { prisma } from '../config/prisma';
 import supabaseAdmin from '../config/supabase';
 import { env } from '../config/env';
@@ -155,6 +155,9 @@ export const banUser = async (req: AuthRequest, res: Response): Promise<void> =>
     }
 
     await prisma.profile.update({ where: { id: profile.id }, data: { status: 'BANNED' } });
+    // Drop any cached auth entries for this user so the ban takes effect on the
+    // very next request instead of after the middleware cache TTL expires.
+    invalidateAuthCacheByProfileId(profile.id);
 
     res.status(200).json({
       success: true,
@@ -178,6 +181,7 @@ export const unbanUser = async (req: AuthRequest, res: Response): Promise<void> 
     }
 
     await prisma.profile.update({ where: { id: profile.id }, data: { status: 'ACTIVE' } });
+    invalidateAuthCacheByProfileId(profile.id);
 
     res.status(200).json({
       success: true,
@@ -293,6 +297,7 @@ export const changeUserRole = async (req: AuthRequest, res: Response): Promise<v
     }
 
     await prisma.profile.update({ where: { id: targetId }, data: { role } });
+    invalidateAuthCacheByProfileId(targetId);
     res.json({ success: true, message: `Role updated to ${role}` });
   } catch (error) {
     logger.error({ err: error, requestId: req.requestId }, 'changeUserRole failed');
