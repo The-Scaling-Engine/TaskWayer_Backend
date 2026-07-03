@@ -587,20 +587,29 @@ export const getLinkedDeptMembers = async (
   });
   if (links.length === 0) return [];
 
-  const result = await Promise.all(
-    links.map(async (link) => {
-      const rows = await prisma.departmentMember.findMany({
-        where:   { departmentId: link.departmentId, status: 'ACTIVE' },
-        include: { member: { select: { id: true, name: true, email: true, avatar: true, username: true } } },
-      });
-      return {
-        dept:    { id: link.department.id, name: link.department.name },
-        members: rows.map(r => r.member),
-      };
-    })
-  );
+  // Single query for all department members across all linked depts, then bucket
+  // by departmentId in-memory. Replaces N queries (one per department) that
+  // could exhaust the small Prisma connection pool on Railway.
+  const deptIds = links.map(l => l.departmentId);
+  const rows = await prisma.departmentMember.findMany({
+    where:  { departmentId: { in: deptIds }, status: 'ACTIVE' },
+    select: {
+      departmentId: true,
+      member: { select: { id: true, name: true, email: true, avatar: true, username: true } },
+    },
+  });
 
-  return result;
+  const membersByDept = new Map<string, typeof rows[number]['member'][]>();
+  for (const r of rows) {
+    const bucket = membersByDept.get(r.departmentId);
+    if (bucket) bucket.push(r.member);
+    else membersByDept.set(r.departmentId, [r.member]);
+  }
+
+  return links.map(link => ({
+    dept:    { id: link.department.id, name: link.department.name },
+    members: membersByDept.get(link.departmentId) ?? [],
+  }));
 };
 
 export const importDepartmentMembers = async (
