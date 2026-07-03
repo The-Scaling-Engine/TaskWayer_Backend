@@ -1,4 +1,5 @@
-import { Notification } from '@prisma/client';
+import { Notification, Prisma } from '@prisma/client';
+import prisma from '../config/prisma';
 import { PrismaNotificationRepository } from '../repositories/prisma/notificationRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
 import { projectRepository } from '../repositories/prisma/projectRepository';
@@ -191,20 +192,38 @@ export const notifyNoteAdded = async (params: {
   }
 
   recipientIds.delete(authorId);
+  if (recipientIds.size === 0) return;
 
-  for (const userId of recipientIds) {
-    try {
-      await createNotification({
-        userId,
-        type: 'NOTE_ADDED',
-        title: `${actor} added a note to "${taskTitle}"`,
-        message: taskTitle,
-        payload: { taskId, projectId, authorId, noteId },
-        entityType: 'task',
-        entityId: taskId,
+  // Batch insert all rows in one round-trip, then fan out socket emits in parallel.
+  // Prior: sequential await per member → 20-member project meant 20 sequential DB inserts
+  // before the HTTP response returned.
+  const payload = { taskId, projectId, authorId, noteId } as Prisma.InputJsonValue;
+  const title   = `${actor} added a note to "${taskTitle}"`;
+  const rows    = [...recipientIds].map(userId => ({
+    userId,
+    type: 'NOTE_ADDED' as const,
+    title,
+    message: taskTitle,
+    payload,
+    entityType: 'task',
+    entityId:   taskId,
+  }));
+
+  try {
+    const created = await prisma.notification.createManyAndReturn({ data: rows });
+    for (const n of created) {
+      realtimeService.emitNotification(n.userId, {
+        id:         n.id,
+        type:       n.type,
+        title:      n.title,
+        message:    n.message,
+        payload:    n.payload,
+        entityType: n.entityType,
+        entityId:   n.entityId,
+        createdAt:  n.createdAt,
       });
-    } catch (err) {
-      logger.error({ err, context: 'notifyNoteAdded', taskId, userId }, 'Note added notification failed');
     }
+  } catch (err) {
+    logger.error({ err, context: 'notifyNoteAdded:batch', taskId }, 'Batch note notifications failed');
   }
 };
