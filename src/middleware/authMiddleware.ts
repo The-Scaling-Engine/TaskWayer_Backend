@@ -40,6 +40,21 @@ interface CachedAuth {
 
 const authCache = new Map<string, CachedAuth>();
 
+// Tracks the last time each profile was invalidated (ban/unban/role-change).
+// Guards against the race where an in-flight slow-path request read a profile's
+// old status *before* the invalidation, then writes that stale snapshot into
+// authCache *after* invalidateAuthCacheByProfileId already ran (which is a no-op
+// if the cache had no entry for that token yet) — without this, the stale write
+// would silently resurrect the pre-ban state for a full TTL_MS window.
+const invalidatedAt = new Map<string, number>();
+
+function pruneInvalidations(): void {
+  const cutoff = Date.now() - TTL_MS;
+  for (const [profileId, ts] of invalidatedAt) {
+    if (ts < cutoff) invalidatedAt.delete(profileId);
+  }
+}
+
 function readCache(token: string): CachedAuth | null {
   const entry = authCache.get(token);
   if (!entry) return null;
@@ -69,6 +84,7 @@ export function invalidateAuthCacheForToken(token: string): void {
 // effect immediately instead of waiting for the TTL to expire — without this,
 // a banned user keeps hitting the API for up to TTL_MS.
 export function invalidateAuthCacheByProfileId(profileId: string): void {
+  invalidatedAt.set(profileId, Date.now());
   for (const [token, entry] of authCache) {
     if (entry.profile.id === profileId) authCache.delete(token);
   }
@@ -108,6 +124,7 @@ export const protect = async (
     }
 
     // ── Slow path: verify with Supabase + fetch profile ─────────────
+    const requestStartedAt = Date.now();
     const { data: { user: supabaseUser }, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !supabaseUser || !supabaseUser.email) {
       logger.warn({ requestId: req.requestId, reason: 'invalid_token', path: req.originalUrl }, 'Auth rejected');
@@ -152,11 +169,20 @@ export const protect = async (
     // Write 'ACTIVE' (not the stale 'PENDING' we read) since the background
     // update above is best-effort and the semantic status for this session is
     // already ACTIVE — otherwise cached entries stay PENDING for the full TTL.
-    writeCache(token, {
-      supabaseUserId: supabaseUser.id,
-      supabaseEmail:  supabaseUser.email,
-      profile: profile.status === 'PENDING' ? { ...profile, status: 'ACTIVE' } : profile,
-    });
+    //
+    // Skip the write if this profile was invalidated (ban/unban/role-change)
+    // *after* this request started reading — the profile snapshot we hold is
+    // from before that change and would poison the cache with stale data for
+    // a full TTL_MS window.
+    pruneInvalidations();
+    const invalidatedSinceRequestStart = (invalidatedAt.get(profile.id) ?? 0) > requestStartedAt;
+    if (!invalidatedSinceRequestStart) {
+      writeCache(token, {
+        supabaseUserId: supabaseUser.id,
+        supabaseEmail:  supabaseUser.email,
+        profile: profile.status === 'PENDING' ? { ...profile, status: 'ACTIVE' } : profile,
+      });
+    }
 
     req.user = {
       id:       profile.id,

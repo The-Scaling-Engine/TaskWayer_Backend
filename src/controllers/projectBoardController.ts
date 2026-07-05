@@ -14,6 +14,29 @@ import { mapPrismaTaskToResponseDTO } from '../dto/task/taskMapper';
 const taskRepo       = new PrismaTaskRepository();
 const membershipRepo = new PrismaMembershipRepository();
 
+// Railway's pool is sized via DATABASE_URL `connection_limit` (currently 10).
+// Running one query per column with an unbounded Promise.all would let a
+// project with many columns saturate the whole pool by itself; cap how many
+// column queries run concurrently so one board request can't starve others.
+const COLUMN_QUERY_CONCURRENCY = 6;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i] as T);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 // GET /api/projects/:id/board?limit=20
 //
 // Aggregates the kanban cold-start into one round-trip. The FE used to fire:
@@ -69,18 +92,16 @@ export const getProjectBoard = async (req: AuthRequest, res: Response): Promise<
 
     // Reads for each column run in parallel — each one respects the same scope
     // filter as GET /tasks so the board matches what /tasks?columnId=X returns.
-    const taskResults = await Promise.all(
-      columns.map(async (col) => {
-        const result = await taskRepo.findManyPaginated({
-          profileId:  userId,
-          filter:     { projectId, columnId: col.id },
-          sort:       { sortBy: 'createdAt', order: 'desc' },
-          pagination: { page: 1, limit },
-          scopeFilter,
-        });
-        return { columnId: col.id, result };
-      })
-    );
+    const taskResults = await mapWithConcurrency(columns, COLUMN_QUERY_CONCURRENCY, async (col) => {
+      const result = await taskRepo.findManyPaginated({
+        profileId:  userId,
+        filter:     { projectId, columnId: col.id },
+        sort:       { sortBy: 'createdAt', order: 'desc' },
+        pagination: { page: 1, limit },
+        scopeFilter,
+      });
+      return { columnId: col.id, result };
+    });
 
     const tasksByColumn: Record<string, { data: unknown; pagination: unknown }> = {};
     for (const { columnId, result } of taskResults) {
