@@ -218,16 +218,26 @@ export class TaskService {
     const profile = await this.resolveProfile(profileId);
 
     if (input.projectId) {
+      // Org ADMIN may create/assign into any project (mirrors updateTask's
+      // milestone/assignment checks) — needed since the assign flow now keeps
+      // the assigner as owner instead of impersonating the target member.
+      const isOrgAdmin = profile.role === 'ADMIN';
       const projectMember = await projectRepository.getMember(input.projectId, profileId);
-      if (!projectMember) {
+      if (!projectMember && !isOrgAdmin) {
         throw new TaskServiceError('You are not a member of this project', 403);
       }
-      if (projectMember.role === ProjectMemberRole.VIEWER) {
+      if (projectMember?.role === ProjectMemberRole.VIEWER) {
         throw new TaskServiceError('VIEWER cannot create tasks in this project', 403);
       }
       const project = await projectRepository.findById(input.projectId, true);
       if (project?.archivedAt) {
         throw new TaskServiceError('Cannot create tasks in an archived project', 400);
+      }
+      if (input.assignedTo) {
+        const memberIds = await projectRepository.getMemberIds(input.projectId);
+        if (!memberIds.includes(input.assignedTo)) {
+          throw new TaskServiceError('Assignee must be a project member', 400);
+        }
       }
     }
 

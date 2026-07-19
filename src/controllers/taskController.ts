@@ -60,28 +60,41 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
         sendError(res, req, 404, 'NOT_FOUND', 'Target user not found');
         return;
       }
-      profileId = targetProfile.id;
+      if (taskInput.projectId) {
+        // Project task: the assigner stays owner and the recipient becomes the
+        // assignee — planning/kanban then show the assignee chip correctly.
+        // (The old owner-swap left assignedTo empty, so assigned tasks looked
+        // unassigned everywhere.)
+        taskInput.assignedTo = targetProfile.id;
+      } else {
+        // Personal task: recipient must own it so it lands in their own list
+        profileId = targetProfile.id;
+      }
     }
 
     const task = await taskService.createTask(profileId, taskInput as CreateTaskInput);
     res.status(201).json({ success: true, message: 'Task created successfully', data: task });
 
-    // Notify assignee via real-time socket (fire-and-forget)
-    if (isAssigning && profileId !== actorId) {
+    // Notify assignee via real-time socket (fire-and-forget). Key off the
+    // target id, not `profileId` — in the project-assign path the owner stays
+    // the actor, so the old `profileId !== actorId` check would skip it.
+    if (isAssigning && targetProfileId && targetProfileId !== actorId) {
       void (async () => {
         const actor = await prisma.profile.findUnique({
           where: { id: actorId },
           select: { name: true },
         });
-        void notificationService.notifyTaskAssigned({
-          assigneeId: profileId,
+        await notificationService.notifyTaskAssigned({
+          assigneeId: targetProfileId,
           actorId,
           actorName: actor?.name ?? null,
           taskId: task._id,
           taskTitle: task.title,
           projectId: task.projectId ?? '',
         });
-      })();
+      })().catch(err =>
+        logger.error({ err, taskId: task._id }, 'createTask: notifyTaskAssigned fire-and-forget failed')
+      );
     }
   } catch (error) {
     if (error instanceof TaskServiceError) {
