@@ -135,6 +135,29 @@ export function initSocket(httpServer: HttpServer): SocketServer {
     // Auto-join personal room
     void socket.join(`user:${user.prismaId}`);
 
+    // Task-room access: creator, assignee, org admin, or any member of the
+    // task's project — mirrors the HTTP read permission so collaborators
+    // actually receive comment/update events (creator-only silently cut
+    // every other project member off from realtime).
+    const canJoinTaskRoom = async (taskId: string): Promise<boolean> => {
+      const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { id: true, profileId: true, assignedTo: true, projectId: true },
+      });
+      if (!task) return false;
+      if (user.role === 'ADMIN') return true;
+      if (task.profileId === user.prismaId) return true;
+      if (task.assignedTo === user.prismaId) return true;
+      if (task.projectId) {
+        const membership = await prisma.projectMember.findFirst({
+          where: { projectId: task.projectId, profileId: user.prismaId },
+          select: { id: true },
+        });
+        return !!membership;
+      }
+      return false;
+    };
+
     // ─── Join task room ───────────────────────────────────────
     socket.on('join:task', async (taskId: string) => {
       if (!checkJoinRateLimit(`${socket.id}:task`)) {
@@ -148,21 +171,8 @@ export function initSocket(httpServer: HttpServer): SocketServer {
       try {
         if (typeof taskId !== 'string' || !taskId.trim()) return;
 
-        const task = await prisma.task.findUnique({
-          where: { id: taskId },
-          select: { id: true, profileId: true },
-        });
-
-        if (!task) return;
-
-        if (user.role === 'ADMIN') {
+        if (await canJoinTaskRoom(taskId)) {
           void socket.join(`task:${taskId}`);
-          return;
-        }
-
-        if (task.profileId === user.prismaId) {
-          void socket.join(`task:${taskId}`);
-          return;
         }
       } catch (err) {
         logger.error({ err, userId: user.prismaId, taskId }, 'Socket join:task failed');
@@ -241,6 +251,16 @@ export function initSocket(httpServer: HttpServer): SocketServer {
       logger.info({ userId: user.prismaId, socketId: socket.id, payload }, 'task:join received');
       if (!payload || typeof payload.taskId !== 'string' || !payload.taskId.trim()) return;
       const { taskId, name = '', avatar = null } = payload;
+
+      // Same authorization as join:task — presence previously joined the room
+      // unchecked, letting any authenticated user subscribe to an arbitrary
+      // task's comment/update stream by guessing its UUID.
+      try {
+        if (!(await canJoinTaskRoom(taskId))) return;
+      } catch (err) {
+        logger.error({ err, userId: user.prismaId, taskId }, 'Socket task:join auth failed');
+        return;
+      }
 
       await socket.join(`task:${taskId}`);
 
