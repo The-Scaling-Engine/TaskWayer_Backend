@@ -157,7 +157,12 @@ async function runDeadlineNotificationJob(): Promise<void> {
 
 export function startDeadlineNotificationJob(): void {
   cron.schedule('*/10 * * * *', () => {
-    void runDeadlineNotificationJob();
+    // A failed run must never escape as an unhandledRejection — the global
+    // handler in server.ts shuts the whole process down, so one transient DB
+    // error in a background job would take the API with it.
+    runDeadlineNotificationJob().catch(err =>
+      logger.error({ err }, 'deadline-notification-job run failed')
+    );
   });
   logger.info('deadline-notification-job: scheduled (every 10 min)');
 }

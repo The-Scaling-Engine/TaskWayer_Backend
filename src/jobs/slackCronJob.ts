@@ -124,7 +124,12 @@ async function runSlackCronTick(): Promise<void> {
 
 export function startSlackCronJob(): void {
   cron.schedule('* * * * *', () => {
-    void runSlackCronTick();
+    // A failed tick must never escape as an unhandledRejection — the global
+    // handler in server.ts shuts the whole process down, so one transient DB
+    // error in a background job would take the API with it.
+    runSlackCronTick().catch(err =>
+      logger.error({ err }, 'slack-cron-job tick failed')
+    );
   });
   logger.info('slack-cron-job: scheduled (every minute, per-project timezone + idempotency)');
 }
