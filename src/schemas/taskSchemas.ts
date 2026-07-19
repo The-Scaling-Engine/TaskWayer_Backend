@@ -43,6 +43,7 @@ export const updateTaskSchema = z.object({
   assignedTo:         z.string().uuid('Invalid assignedTo').nullable().optional(),
   milestoneId:        z.string().uuid('Invalid milestoneId').nullable().optional(),
   milestoneOrder:     z.coerce.number().int().min(0).nullable().optional(),
+  estimatedHours:     z.coerce.number().nonnegative().nullable().optional(),
 });
 export type UpdateTaskBody = z.infer<typeof updateTaskSchema>;
 
