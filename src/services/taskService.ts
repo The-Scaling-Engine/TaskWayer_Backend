@@ -580,14 +580,17 @@ export class TaskService {
     }
 
     // ── Status ↔ column sync (project tasks) ───────────────────
-    // Planning/list edits send only status; some API callers send only
-    // columnId. Derive the missing half so the kanban (grouped by columnId)
-    // and the status-based views can never drift apart.
+    // Derive the missing half so the kanban (grouped by columnId) and the
+    // status-based views can never drift apart. Compare against the CURRENT
+    // values, not mere key presence: TaskDialog always echoes the existing
+    // columnId back alongside a status edit, so "columnId absent" would never
+    // trigger and a status change from planning would leave the task stuck in
+    // its old column.
     let nextStatus = input.status;
     if (task.projectId) {
       const statusChanging = input.status !== undefined && input.status !== task.status;
       const columnChanging = input.columnId != null && input.columnId !== task.columnId;
-      if (statusChanging && input.columnId === undefined) {
+      if (statusChanging && !columnChanging) {
         const columns = await boardColumnRepository.getColumnsByProjectId(task.projectId);
         const derived = deriveColumnForStatus(columns, input.status as TaskStatus);
         if (derived !== null && derived !== task.columnId) data.columnId = derived;
