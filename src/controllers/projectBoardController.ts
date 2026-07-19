@@ -122,7 +122,9 @@ export const getProjectBoard = async (req: AuthRequest, res: Response): Promise<
         pagination: {
           currentPage: result.page,
           totalPages,
-          totalCount:  result.total,
+          // Field name must match GET /tasks (`totalTasks`) — the FE Pagination
+          // type reads only that key for column counts and load-more math.
+          totalTasks:  result.total,
           limit:       result.limit,
           hasNextPage: result.page < totalPages,
           hasPrevPage: result.page > 1,
