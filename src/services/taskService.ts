@@ -1,4 +1,5 @@
-import { Task, Profile, RecurrenceType } from '@prisma/client';
+import { Task, Profile, RecurrenceType, BoardColumn } from '@prisma/client';
+import { boardColumnRepository } from '../repositories/prisma/boardColumnRepository';
 import { generateRecurrenceDates } from '../utils/recurrence';
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
 import { resolveTaskPermission, TaskPermissionError } from '../utils/taskPermissions';
@@ -124,6 +125,46 @@ export class TaskServiceError extends Error {
   }
 }
 
+// ─── Status ↔ board column sync ──────────────────────────────────────────────
+// The project kanban groups tasks by columnId while every other surface
+// (planning tree, list views, analytics) reads status. Callers usually change
+// only one of the two — planning edits send status, kanban drags send both —
+// so when one side changes without the other we derive the missing half here,
+// otherwise the board and the status-based views drift apart until a manual
+// move. Name match wins; column position is the fallback (mirrors the FE drag
+// heuristic in KanbanBoard.handleDragEnd).
+
+const DONE_COL_NAME  = /\bdone\b|\bcomplete[d]?\b|\bfinish(ed)?\b/;
+const TODO_COL_NAME  = /\bto[\s-]?do\b|\btodo\b|\bbacklog\b|\bnew\b/;
+const DOING_COL_NAME = /\bdoing\b|\bin[\s-]?progress\b|\bprogress\b|\bactive\b|\bwip\b/;
+
+type TaskStatus = 'todo' | 'doing' | 'done';
+
+const deriveStatusForColumn = (columns: BoardColumn[], columnId: string): TaskStatus | null => {
+  const sorted = [...columns].sort((a, b) => a.order - b.order);
+  const idx = sorted.findIndex(c => c.id === columnId);
+  if (idx === -1) return null;
+  const name = sorted[idx]!.name.toLowerCase().trim();
+  if (DONE_COL_NAME.test(name))  return 'done';
+  if (TODO_COL_NAME.test(name))  return 'todo';
+  if (DOING_COL_NAME.test(name)) return 'doing';
+  if (idx === 0) return 'todo';
+  if (idx === sorted.length - 1) return 'done';
+  return 'doing';
+};
+
+const deriveColumnForStatus = (columns: BoardColumn[], status: TaskStatus): string | null => {
+  if (columns.length === 0) return null;
+  const sorted = [...columns].sort((a, b) => a.order - b.order);
+  const byName = (re: RegExp) => sorted.find(c => re.test(c.name.toLowerCase().trim()));
+  if (status === 'done') return (byName(DONE_COL_NAME) ?? sorted[sorted.length - 1]!).id;
+  if (status === 'todo') return (byName(TODO_COL_NAME) ?? sorted.find(c => c.isDefault) ?? sorted[0]!).id;
+  const doing = byName(DOING_COL_NAME);
+  if (doing) return doing.id;
+  // 1–2 column boards with no recognizable name: no confident target — leave the task where it is
+  return sorted.length >= 3 ? sorted[1]!.id : null;
+};
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const activityLogRepo = new PrismaActivityLogRepository();
@@ -202,6 +243,15 @@ export class TaskService {
     const initialStatus = input.status ?? 'todo';
     const completedNow  = initialStatus === 'done' ? new Date() : undefined;
 
+    // Derive the board column from status so a task created as doing/done from
+    // planning or the API lands in the matching kanban column instead of the
+    // default (To Do) bucket.
+    let columnId = input.columnId ?? null;
+    if (input.projectId && columnId == null) {
+      const columns = await boardColumnRepository.getColumnsByProjectId(input.projectId);
+      columnId = deriveColumnForStatus(columns, initialStatus);
+    }
+
     const task = await this.taskRepo.create({
       title:             input.title.trim(),
       description:       input.description ?? '',
@@ -212,7 +262,7 @@ export class TaskService {
       scheduledAt:       input.scheduledAt ? new Date(input.scheduledAt) : new Date(),
       ...(input.deadline        != null && { deadline:        new Date(input.deadline) }),
       ...(input.projectId       != null && { projectId:       input.projectId }),
-      ...(input.columnId        != null && { columnId:        input.columnId }),
+      ...(columnId              != null && { columnId }),
       ...(input.assignedTo      != null && { assignedTo: input.assignedTo, assignedBy: profile.id }),
       ...(completedNow !== undefined    && { completedAt:     completedNow }),
       isRecurring:       input.isRecurring ?? false,
@@ -250,6 +300,7 @@ export class TaskService {
           scheduledAt:       scheduledDate,
           ...(deadline !== undefined && { deadline }),
           ...(task.projectId      && { projectId:    task.projectId }),
+          ...(task.columnId       && { columnId:     task.columnId }),
           isRecurring:         true,
           recurrenceType:      task.recurrenceType!,
           ...(task.recurrenceInterval != null && { recurrenceInterval: task.recurrenceInterval }),
@@ -268,6 +319,17 @@ export class TaskService {
           );
           throw err;
         }
+      }
+    }
+
+    if (task.projectId) {
+      if (task.milestoneId) {
+        // A task landing in a COMPLETED milestone must reopen it — the check
+        // emits planning:updated on every path once it settles.
+        void checkAndUpdateCompletion(task.milestoneId, task.projectId);
+      } else {
+        // Planning tree also lists unassigned project tasks — refresh subscribers
+        realtimeService.emitPlanningUpdated(task.projectId, { type: 'task_updated', updatedAt: task.createdAt });
       }
     }
 
@@ -507,16 +569,35 @@ export class TaskService {
       data.milestoneOrder = input.milestoneOrder ?? null;
     }
 
+    // ── Status ↔ column sync (project tasks) ───────────────────
+    // Planning/list edits send only status; some API callers send only
+    // columnId. Derive the missing half so the kanban (grouped by columnId)
+    // and the status-based views can never drift apart.
+    let nextStatus = input.status;
+    if (task.projectId) {
+      const statusChanging = input.status !== undefined && input.status !== task.status;
+      const columnChanging = input.columnId != null && input.columnId !== task.columnId;
+      if (statusChanging && input.columnId === undefined) {
+        const columns = await boardColumnRepository.getColumnsByProjectId(task.projectId);
+        const derived = deriveColumnForStatus(columns, input.status as TaskStatus);
+        if (derived !== null && derived !== task.columnId) data.columnId = derived;
+      } else if (columnChanging && input.status === undefined) {
+        const columns = await boardColumnRepository.getColumnsByProjectId(task.projectId);
+        const derived = deriveStatusForColumn(columns, input.columnId as string);
+        if (derived !== null && derived !== task.status) nextStatus = derived;
+      }
+    }
+
     // completedAt and inProgressAt are server-managed only
     // Transition: non-done → done sets completedAt once; done → non-done clears it;
     // non-doing → doing sets inProgressAt once (never overwritten)
-    const isCompletingNow = input.status === 'done' && task.status !== 'done';
-    const isStartingNow   = input.status === 'doing' && task.status !== 'doing' && !task.inProgressAt;
-    if (input.status !== undefined) {
-      data.status = input.status;
+    const isCompletingNow = nextStatus === 'done' && task.status !== 'done';
+    const isStartingNow   = nextStatus === 'doing' && task.status !== 'doing' && !task.inProgressAt;
+    if (nextStatus !== undefined) {
+      data.status = nextStatus;
       if (isCompletingNow) {
         data.completedAt = new Date();
-      } else if (input.status !== 'done') {
+      } else if (nextStatus !== 'done') {
         data.completedAt = null;
       }
       if (isStartingNow) {
@@ -569,12 +650,14 @@ export class TaskService {
       updatedAt: updated.updatedAt,
     });
 
-    // Emit planning:updated at most once per update — either milestone assignment
-    // changed, or a milestone-attached parent task was modified.
+    // Emit planning:updated at most once per update. The planning tree renders
+    // every parent project task — milestone-attached AND unassigned — so any
+    // parent-task change must reach subscribers; the old milestone-only
+    // condition left unassigned tasks stale in open planning views.
     const milestoneAssignmentChanged = data.milestoneId !== undefined && !!task.projectId;
-    const milestoneTaskModified      = !!task.milestoneId && !!task.projectId && !task.parentTaskId;
-    if (task.projectId && (milestoneAssignmentChanged || milestoneTaskModified)) {
-      realtimeService.emitPlanningUpdated(task.projectId, { type: 'task_milestone_changed', updatedAt: updated.updatedAt });
+    const planningVisibleModified    = !!task.projectId && !task.parentTaskId;
+    if (task.projectId && (milestoneAssignmentChanged || planningVisibleModified)) {
+      realtimeService.emitPlanningUpdated(task.projectId, { type: 'task_updated', updatedAt: updated.updatedAt });
     }
 
     // Auto-complete / re-open milestone — fire-and-forget so HTTP response is not blocked;
@@ -836,6 +919,12 @@ export class TaskService {
 
     if (task.milestoneId && task.projectId && !task.parentTaskId) {
       void checkAndUpdateCompletion(task.milestoneId, task.projectId);
+    }
+    if (task.projectId && !task.parentTaskId) {
+      // Always refresh planning subscribers — checkAndUpdateCompletion emits
+      // nothing when the milestone just became empty, and unassigned project
+      // tasks are listed in the planning tree too.
+      realtimeService.emitPlanningUpdated(task.projectId, { type: 'task_updated', updatedAt: new Date() });
     }
   }
 }

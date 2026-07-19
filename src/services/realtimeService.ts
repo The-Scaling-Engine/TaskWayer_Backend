@@ -94,7 +94,7 @@ export function emitTaskUpdated(taskId: string, payload: TaskUpdatedPayload): vo
 // ─── Planning events ──────────────────────────────────────────
 
 export interface PlanningUpdatedPayload {
-  type: 'milestone_crud' | 'milestone_reordered' | 'task_milestone_changed' | 'subtask_moved' | 'milestone_completed';
+  type: 'milestone_crud' | 'milestone_reordered' | 'task_milestone_changed' | 'subtask_moved' | 'milestone_completed' | 'task_updated';
   updatedAt: Date;
 }
 
